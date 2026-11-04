@@ -1,0 +1,8 @@
+node_modules
+dist
+assets-src/downloads
+*.log
+.DS_Store
+shots/
+results/dev/
+results/cinematic/

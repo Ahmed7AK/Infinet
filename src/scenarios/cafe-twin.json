@@ -1,0 +1,20 @@
+{
+  "id": "cafe-twin",
+  "label": "The fake café Wi-Fi",
+  "proves": "FEATURE 2 · CHECKS BEFORE IT TRUSTS",
+  "zone": "street",
+  "route": "cafe-twin",
+  "durationS": 50,
+  "prewarmS": 0,
+  "startDelayS": 0.5,
+  "defaultBaseline": "b2",
+  "init": { "route": "cell:cell-a", "wifi": null, "infinetTrusted": ["cell:cell-a"] },
+  "events": [
+    { "when": { "enterRegion": "cafe" }, "delayS": 4, "do": "attacker.start" }
+  ],
+  "captions": [
+    { "at": 0.5, "text": "Still on the call, now on 5G, walking into a café." },
+    { "on": "attacker.start", "text": "Someone at the corner table starts a copy of the café Wi-Fi: same name, stronger signal." },
+    { "on": "trust.blocked", "text": "Infinet checked the copy first and blocked it. The call never touched it." }
+  ]
+}

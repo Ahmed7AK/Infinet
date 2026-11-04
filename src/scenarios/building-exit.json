@@ -1,0 +1,38 @@
+{
+  "id": "building-exit",
+  "label": "Leaving the building",
+  "proves": "FEATURE 1 · SEES THE DROP COMING",
+  "zone": "office",
+  "route": "building-exit",
+  "durationS": 50,
+  "prewarmS": 0,
+  "startDelayS": 1.0,
+  "defaultBaseline": "b1",
+  "init": {
+    "route": "wifi:office-corp",
+    "wifi": "office-corp",
+    "infinetTrusted": [
+      "office-corp"
+    ]
+  },
+  "events": [],
+  "captions": [
+    {
+      "at": 0.5,
+      "text": "You're on a call with Hamad, on the office Wi-Fi."
+    },
+    {
+      "on": "predict.edge",
+      "text": "Infinet saw the Wi-Fi edge on its map, seconds early."
+    },
+    {
+      "on": "check.pass",
+      "text": "It checked 5G first: the handshake with our anchor server passed."
+    },
+    {
+      "on": "switch.done",
+      "text": "The call moved to 5G before the Wi-Fi died. Today's phone waits for the drop.",
+      "to": "cell:"
+    }
+  ]
+}

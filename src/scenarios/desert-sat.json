@@ -1,0 +1,21 @@
+{
+  "id": "desert-sat",
+  "label": "The desert site",
+  "proves": "SATELLITE · PATIENT, NOT PANICKED",
+  "zone": "desert",
+  "route": "desert-sat",
+  "durationS": 100,
+  "prewarmS": 40,
+  "startDelayS": 0,
+  "defaultBaseline": "b3",
+  "init": { "route": "wifi:site-net", "wifi": "site-net", "infinetTrusted": ["site-net"] },
+  "events": [
+    { "when": { "at": 79 }, "do": "leo.outage" }
+  ],
+  "captions": [
+    { "at": 40.5, "text": "A remote site at dusk. The only way out is the site router's satellite links." },
+    { "on": "sat.pattern", "text": "Infinet learned the low-orbit satellite's 15-second hiccup and protects the voice ahead of it." },
+    { "on": "sat.outage", "text": "The low-orbit link is blocked. The router falls back to a geostationary satellite." },
+    { "on": "sat.failover", "text": "A 600 ms round trip is normal on this link. Infinet holds the call; fixed timeouts panic." }
+  ]
+}

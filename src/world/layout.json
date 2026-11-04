@@ -1,0 +1,127 @@
+{
+  "units": "m",
+  "frame": "x = east, y = north, z = up. Three.js: (x, z, -y).",
+  "site": { "latDeg": 24.2, "lonDeg": 55.7 },
+  "zones": [
+    { "id": "office", "label": "Office", "bounds": [[-44, -20], [34, 30]], "spawn": { "pos": [-20, 5], "headingDeg": 75 } },
+    { "id": "street", "label": "Street & café", "bounds": [[-44, -260], [200, -20]], "spawn": { "pos": [5, -100], "headingDeg": 180 } },
+    { "id": "desert", "label": "Desert site", "bounds": [[11900, -100], [12100, 100]], "spawn": { "pos": [12004, -8], "headingDeg": 0 } }
+  ],
+  "regions": [
+    { "id": "office", "poly": [[-40, 0], [0, 0], [0, 25], [-40, 25]] },
+    { "id": "lobby", "poly": [[-8, 6], [0, 6], [0, 19], [-8, 19]] },
+    { "id": "cafe", "poly": [[-22, -138], [6, -138], [6, -122], [-22, -122]] },
+    { "id": "desert-site", "poly": [[11980, -20], [12020, -20], [12020, 20], [11980, 20]] }
+  ],
+  "buildings": [
+    { "id": "office", "poly": [[-40, 0], [0, 0], [0, 25], [-40, 25]], "o2i": "high", "kind": "cutaway", "floor": "terrazzo" },
+    { "id": "cafe", "poly": [[-22, -138], [0, -138], [0, -122], [-22, -122]], "o2i": "low", "kind": "cutaway", "floor": "wood" },
+    { "id": "blk-w1", "poly": [[-40, -110], [0, -110], [0, -8], [-40, -8]], "o2i": "high", "kind": "block", "height": 14 },
+    { "id": "blk-w2", "poly": [[-40, -175], [0, -175], [0, -146], [-40, -146]], "o2i": "high", "kind": "block", "height": 10 },
+    { "id": "blk-e1", "poly": [[30, -40], [70, -40], [70, 28], [30, 28]], "o2i": "high", "kind": "block", "height": 22 },
+    { "id": "blk-e2", "poly": [[30, -120], [64, -120], [64, -52], [30, -52]], "o2i": "high", "kind": "block", "height": 16 },
+    { "id": "blk-e3", "poly": [[30, -200], [70, -200], [70, -132], [30, -132]], "o2i": "high", "kind": "block", "height": 12 },
+    { "id": "container", "poly": [[11997, -1.22], [12003.06, -1.22], [12003.06, 1.22], [11997, 1.22]], "o2i": "high", "kind": "container", "height": 2.59 }
+  ],
+  "walls": [
+    { "a": [-40, 0], "b": [0, 0], "h": 3.2, "material": "lowE_glass", "zone": "office", "note": "south façade, low-E coated" },
+    { "a": [-40, 25], "b": [0, 25], "h": 3.2, "material": "lowE_glass", "zone": "office", "note": "north façade" },
+    { "a": [-40, 0], "b": [-40, 25], "h": 3.2, "material": "concrete", "zone": "office", "note": "party wall" },
+    { "a": [0, 0], "b": [0, 11], "h": 3.2, "material": "lowE_glass", "zone": "office", "note": "east façade" },
+    { "a": [0, 11], "b": [0, 14], "h": 3.2, "material": "clear_glass", "zone": "office", "door": true, "note": "lobby glass doors" },
+    { "a": [0, 14], "b": [0, 25], "h": 3.2, "material": "lowE_glass", "zone": "office", "note": "east façade" },
+
+    { "a": [-24, 9], "b": [-16, 9], "h": 3.2, "material": "concrete", "zone": "office", "note": "core" },
+    { "a": [-16, 9], "b": [-16, 16], "h": 3.2, "material": "concrete", "zone": "office", "note": "core" },
+    { "a": [-16, 16], "b": [-24, 16], "h": 3.2, "material": "concrete", "zone": "office", "note": "core" },
+    { "a": [-24, 16], "b": [-24, 9], "h": 3.2, "material": "concrete", "zone": "office", "note": "core" },
+    { "a": [-23, 10], "b": [-20, 10], "h": 3.2, "material": "metal", "zone": "office", "note": "lift shaft" },
+    { "a": [-20, 10], "b": [-20, 15], "h": 3.2, "material": "metal", "zone": "office", "note": "lift shaft" },
+    { "a": [-20, 15], "b": [-23, 15], "h": 3.2, "material": "metal", "zone": "office", "note": "lift shaft" },
+    { "a": [-23, 15], "b": [-23, 10], "h": 3.2, "material": "metal", "zone": "office", "note": "lift shaft" },
+
+    { "a": [-38, 19], "b": [-30, 19], "h": 3.2, "material": "clear_glass", "zone": "office", "note": "meeting room A" },
+    { "a": [-30, 19], "b": [-30, 25], "h": 3.2, "material": "clear_glass", "zone": "office", "note": "meeting room A/B" },
+    { "a": [-30, 19], "b": [-22, 19], "h": 3.2, "material": "clear_glass", "zone": "office", "note": "meeting room B", "addedAfterSurvey": true },
+    { "a": [-22, 19], "b": [-22, 25], "h": 3.2, "material": "clear_glass", "zone": "office", "note": "meeting room B", "addedAfterSurvey": true },
+    { "a": [-40, 19], "b": [-38, 19], "h": 3.2, "material": "drywall", "zone": "office", "note": "meeting room A" },
+
+    { "a": [-40, 5], "b": [-36, 5], "h": 3.2, "material": "drywall", "zone": "office", "note": "comms room" },
+    { "a": [-36, 5], "b": [-35, 5], "h": 3.2, "material": "wood_door", "zone": "office", "door": true, "note": "comms room door" },
+    { "a": [-35, 5], "b": [-34, 5], "h": 3.2, "material": "drywall", "zone": "office", "note": "comms room" },
+    { "a": [-34, 0], "b": [-34, 5], "h": 3.2, "material": "drywall", "zone": "office", "note": "comms room" },
+    { "a": [-8, 0], "b": [-8, 6], "h": 3.2, "material": "drywall", "zone": "office", "note": "lobby partition" },
+    { "a": [-8, 19], "b": [-8, 25], "h": 3.2, "material": "drywall", "zone": "office", "note": "lobby partition" },
+
+    { "a": [-22, -138], "b": [0, -138], "h": 3.4, "material": "brick", "zone": "street", "note": "café south wall" },
+    { "a": [-22, -122], "b": [0, -122], "h": 3.4, "material": "brick", "zone": "street", "note": "café north wall" },
+    { "a": [-22, -138], "b": [-22, -122], "h": 3.4, "material": "brick", "zone": "street", "note": "café back wall" },
+    { "a": [0, -138], "b": [0, -131], "h": 3.4, "material": "clear_glass", "zone": "street", "note": "café shopfront" },
+    { "a": [0, -131], "b": [0, -128], "h": 3.4, "material": "clear_glass", "zone": "street", "door": true, "note": "café door" },
+    { "a": [0, -128], "b": [0, -122], "h": 3.4, "material": "clear_glass", "zone": "street", "note": "café shopfront" },
+    { "a": [-12, -128], "b": [-12, -122], "h": 1.1, "material": "wood_door", "zone": "street", "note": "café counter", "rfIgnore": true },
+
+    { "a": [11997, -1.22], "b": [12003.06, -1.22], "h": 2.59, "material": "metal", "zone": "desert", "note": "container" },
+    { "a": [12003.06, -1.22], "b": [12003.06, 1.22], "h": 2.59, "material": "metal", "zone": "desert", "note": "container" },
+    { "a": [12003.06, 1.22], "b": [11997, 1.22], "h": 2.59, "material": "metal", "zone": "desert", "note": "container" },
+    { "a": [11997, 1.22], "b": [11997, -1.22], "h": 2.59, "material": "metal", "zone": "desert", "note": "container" }
+  ],
+  "transmitters": [
+    { "id": "ap-office-1", "kind": "wifi", "net": "office-corp", "ssid": "Office-Corp", "bssid": "02:1a:4e:00:00:01",
+      "security": "WPA3-ENT", "pmf": "required", "band": "5", "channel": 36, "pos": [-32, 12, 3.0], "eirpDbm": 20,
+      "grid": { "bounds": [[-44, -20], [34, 30]], "res": 0.5 } },
+    { "id": "ap-office-2", "kind": "wifi", "net": "office-corp", "ssid": "Office-Corp", "bssid": "02:1a:4e:00:00:02",
+      "security": "WPA3-ENT", "pmf": "required", "band": "5", "channel": 52, "pos": [-13, 5, 3.0], "eirpDbm": 20,
+      "surveyPos": [-7, 5, 3.0],
+      "grid": { "bounds": [[-44, -20], [34, 30]], "res": 0.5 } },
+    { "id": "ap-office-3", "kind": "wifi", "net": "office-corp", "ssid": "Office-Corp", "bssid": "02:1a:4e:00:00:03",
+      "security": "WPA3-ENT", "pmf": "required", "band": "5", "channel": 100, "pos": [-13, 20, 3.0], "eirpDbm": 20,
+      "grid": { "bounds": [[-44, -20], [34, 30]], "res": 0.5 } },
+    { "id": "ap-cafe", "kind": "wifi", "net": "cafe-guest", "ssid": "Cafe_Guest", "bssid": "0e:5c:11:7a:20:04",
+      "security": "OPEN", "pmf": "none", "band": "5", "channel": 36, "pos": [-19, -124, 2.6], "eirpDbm": 20,
+      "captivePortal": true, "airtimeLoad": true,
+      "grid": { "bounds": [[-30, -150], [34, -105]], "res": 0.5 } },
+    { "id": "twin", "kind": "wifi", "net": "twin", "ssid": "Cafe_Guest", "bssid": "36:91:c4:0b:5e:11",
+      "security": "OPEN", "pmf": "none", "band": "5", "channel": 36, "pos": [-4, -136, 0.8], "eirpDbm": 20,
+      "attacker": true, "startsOff": true,
+      "grid": { "bounds": [[-30, -150], [34, -105]], "res": 0.5 } },
+    { "id": "ap-site", "kind": "wifi", "net": "site-net", "ssid": "Site-Net", "bssid": "02:5e:aa:10:00:07",
+      "security": "WPA3-SAE", "pmf": "required", "band": "5", "channel": 36, "pos": [12003.3, 0, 2.4], "eirpDbm": 20,
+      "uplinks": [{ "type": "LEO", "primary": true }, { "type": "GEO" }],
+      "grid": { "bounds": [[11960, -40], [12040, 40]], "res": 0.5 } },
+    { "id": "cellA-mono", "kind": "cell", "net": "cell-a", "operator": "Cellular A", "fcGHz": 3.5, "pos": [160, -180, 30],
+      "model": "UMa",
+      "sectors": [{ "azDeg": 330, "downtiltDeg": 4 }, { "azDeg": 90, "downtiltDeg": 4 }, { "azDeg": 210, "downtiltDeg": 4 }],
+      "grid": { "bounds": [[-60, -280], [220, 60]], "res": 2 } },
+    { "id": "cellB-rural", "kind": "cell", "net": "cell-b", "operator": "Cellular B", "fcGHz": 3.5, "pos": [15300, 1400, 35],
+      "model": "RMa",
+      "sectors": [{ "azDeg": 250, "downtiltDeg": 2 }, { "azDeg": 10, "downtiltDeg": 2 }, { "azDeg": 130, "downtiltDeg": 2 }],
+      "grid": { "bounds": [[11900, -100], [12100, 100]], "res": 2 } }
+  ],
+  "props": {
+    "desks": [[-36, 3], [-36, 7], [-30, 3], [-30, 7], [-36, 13], [-30, 13], [-36, 16], [-30, 16], [-13, 3], [-13, 7], [-12, 14], [-12, 17]],
+    "rack": [-38.5, 1.5],
+    "reception": [-4, 18],
+    "cafeTables": [[-6, -129], [-6, -135], [-12, -134], [-17, -134], [-17, -129], [-4, -136], [4, -126], [4, -134]],
+    "palms": [[4, 30], [4, 0], [4, -20], [4, -40], [4, -60], [4, -80], [4, -100], [4, -118], [4, -145], [27, 20], [27, -10], [27, -40], [27, -70], [27, -100], [27, -130], [27, -160]],
+    "cars": [[11, -30, 0], [11, -62, 0], [21, -85, 180], [11, -150, 0], [21, -20, 180]],
+    "lamps": [[8.5, 20], [8.5, -10], [8.5, -40], [8.5, -70], [8.5, -100], [8.5, -130], [8.5, -160], [23.5, 5], [23.5, -55], [23.5, -115]],
+    "generator": [11990, -4],
+    "leoTerminal": [12006, 3, 3.5],
+    "geoDish": [11993, 5],
+    "fence": [[11980, -20], [12020, -20], [12020, 20], [11980, 20]],
+    "attackerSeat": [-4, -136]
+  },
+  "street": { "road": [[8, -260], [24, 40]], "sidewalks": [[[2, -260], [8, 40]], [[24, -260], [30, 40]]] },
+  "routes": {
+    "building-exit": [[-20, 5], [-6, 12.5], [0, 12.5], [5.5, 9.5], [5.5, -40]],
+    "cafe-twin": [[5.5, -100], [5.5, -129.5], [1.5, -129.5], [-4.5, -129.5]],
+    "desert-sat": [[12004, -8], [12008, -4]]
+  },
+  "visual": {
+    "anchor": { "pos": [-260, 380, 0], "label": "Anchor server" },
+    "anchorDesert": { "pos": [11400, 900, 0], "label": "Anchor server" },
+    "gateway": { "pos": [11300, -700, 0], "label": "Satellite gateway" },
+    "internet": { "pos": [-300, 300, 0] }
+  }
+}
