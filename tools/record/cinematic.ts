@@ -7,10 +7,9 @@
  * waits for the renderer and the label layer, then screenshots. Frames are JPEG; ffmpeg (if on PATH) encodes
  * one MP4 per scene plus infinet-cinematic.mp4. No audio: the voice is a placeholder until the teammate recording.
  */
-import { chromium } from 'playwright';
+import { launch } from './browser';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const args = process.argv.slice(2);
@@ -25,19 +24,9 @@ const scenes = arg('scenes', 'building-exit:34,cafe-twin:40,desert-sat:97').spli
   return { sc, until: Number(until) };
 });
 
-function cachedChromium(): string | undefined {
-  const dir = join(homedir(), 'Library/Caches/ms-playwright');
-  if (!existsSync(dir)) return undefined;
-  for (const d of readdirSync(dir).filter((x) => x.startsWith('chromium_headless_shell-')).sort().reverse()) {
-    const exe = join(dir, d, 'chrome-headless-shell-mac-arm64/chrome-headless-shell');
-    if (existsSync(exe)) return exe;
-  }
-  return undefined;
-}
 const hasFfmpeg = (() => { try { execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
 
-const launchArgs = ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'];
-const browser = await chromium.launch({ args: launchArgs }).catch(() => chromium.launch({ args: launchArgs, executablePath: cachedChromium() }));
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
 const errors: string[] = [];
 page.on('pageerror', (e) => errors.push(String(e)));

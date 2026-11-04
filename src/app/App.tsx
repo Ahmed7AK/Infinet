@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { driver, useUi, type Playable } from './driver';
 import { World } from './scene/World';
 import { LabelLayer } from './scene/labels';
-import { Caption, Help, ModeBanner, Notifications, Perf, PolicyPanel, SideCards, Timeline, TopBar, useStageScale } from './ui/Hud';
+import { Hud, useStageScale } from './ui/Hud';
 import { APPS, LAB, Phone } from './phone/Phone';
 
 const TRAVEL: Record<string, Playable> = { Digit1: 'building-exit', Digit2: 'cafe-twin', Digit4: 'desert-sat' };
@@ -14,7 +14,11 @@ function onKeyDown(e: KeyboardEvent) {
   const set = useUi.setState;
   const c = e.code;
   if (/^Key[WASD]$/.test(c) || c.startsWith('Shift')) { driver.keys.add(c); }
-  if (c === 'KeyN' && !e.repeat) set({ view: e.shiftKey ? (ui.view === 'error' ? 'belief' : 'error') : ui.view === 'belief' ? 'truth' : 'belief' });
+  // N: Network Vision on/off · Shift+N (in Vision): Infinet's map → true signal → map error
+  if (c === 'KeyN' && !e.repeat) {
+    if (e.shiftKey) set({ vision: true, view: ui.vision ? (ui.view === 'belief' ? 'truth' : ui.view === 'truth' ? 'error' : 'belief') : ui.view });
+    else set({ vision: !ui.vision });
+  }
   if (c === 'KeyC' && !e.repeat) driver.cycleBaseline();
   if (c === 'KeyB') set({ holdB: true });
   if (c === 'Space') { e.preventDefault(); set({ slow: true }); }
@@ -72,17 +76,8 @@ export function App() {
       <div className="canvas-wrap"><World /></div>
       <LabelLayer />
       <div className="stage" style={{ width: w, transform: `scale(${k})` }}>
-        <TopBar />
-        <PolicyPanel side="left" />
-        <PolicyPanel side="right" />
-        <SideCards />
-        <Notifications />
-        <Timeline />
-        <Caption />
-        <ModeBanner />
+        <Hud />
         <Phone />
-        <Help />
-        <Perf />
       </div>
       <div className="fade" style={{ opacity: fading ? 1 : 0 }} />
     </>

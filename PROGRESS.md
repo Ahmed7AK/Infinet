@@ -6,13 +6,14 @@
 |---|---|
 | Engine: radio, maps, prediction, trust, LEO/GEO, voice, policies B1/B2/B3/Infinet + ablations | Done · 22 tests pass |
 | Scenarios: leaving the building, fake café Wi-Fi, desert site | Done · demo seeds 26 / 21 / 16 (near median) |
-| 3D world in the style-guide look (grid ground, 1.5 m cut-away walls, dBm cells, pixel tiles, violet tunnel) | Done |
-| HUD: top bar, two policy panels, timeline with EDGE SEEN / WI-FI ACTUALLY DIES markers, captions, notes | Done |
-| Phone (Infinet OS): Infinet, Networks, Call, Map, Shield, Lab, Sim notes, Credits | Done |
-| Modes: free roam, tour (T), attract (45 s idle), slow-mo, truth/error views, fast travel | Done |
-| Booth hardening: offline, auto-reload on error / WebGL loss, F9 reset | Done · `npm run qa` 10/10 PASS |
+| 3D world, realistic (plan D3): HDR skies with a measured, shadow-casting sun, PBR textures, 27 Blender-built props, people, third-person camera with collision | Done |
+| Network Vision (N): grade, 1 m heatmap with −67 / −75 / −100 dBm contours, belief · truth · error (Shift+N), tunnel tube, packets on every hop, sectors, beacons, backhaul, anchor, satellites, trust holograms, edge countdown | Done |
+| HUD (plan §8): scene title, comparison strip with edge-seen / Wi-Fi-dies markers, Vision tag + legend, hints, notifications, rotating minimap, captions | Done |
+| Phone (Infinet OS), peeking bottom-right: Infinet, Networks, Call, Map, Shield, Lab, Sim notes, Credits | Done |
+| Modes: free roam, tour (T), attract (45 s idle), slow-mo, fast travel | Done |
+| Booth hardening: offline, auto-reload on error / WebGL loss, F9 reset | Done · `npm run qa` 14/14 PASS (61 fps headless) |
 | Batch: 300 runs × 3 scenarios + property test | Done → `results/2026-11-04/SUMMARY.md` |
-| Screenshots (14 beats) | Done → `results/shots/` |
+| Screenshots (17 beats, Reality and Vision) | Done → `results/shots/` (old style-guide shots kept in `results/shots-styleguide/`) |
 | Cinematic recorder | Done (`npm run cinematic`); full video not yet rendered |
 
 ## Batch headline (results/2026-11-04, 300 runs per scenario, simulated)
@@ -33,7 +34,9 @@
 
 ## TODO (needs a person or an asset)
 
-- [ ] **Logo.** Replace the placeholder lockup in `src/app/ui/Hud.tsx` (`TODO(logo)`) with the master SVG in `public/brand/`. The wordmark is artwork, so don't retype it.
+- [ ] **Character (Mixamo).** Replace the Blender placeholder mannequin (`public/models/mannequin.glb`, posed in code in `src/app/scene/Character.tsx`) with one rigged Mixamo character and these clips, exported as one GLB (`public/models/character.glb`): idle · walk · run · texting / looking at phone · talking on phone · sitting idle · sitting typing. Mixamo needs an Adobe login, so a person has to download them; check the licence terms allow the booth use and record it in CREDITS.md. Then swap `useModel('mannequin')` for an `AnimationMixer` driven by speed and pose.
+- [ ] Optional: BlendKit or Poly Haven models for hero props (car, café furniture) if the Blender props read too simple on the booth screen. CC0 / CC-BY only, recorded in CREDITS.md.
+- [ ] **Logo.** No longer on the simulation HUD (scene title top-left instead). If it is wanted on the attract screen, use the master SVG; the wordmark is artwork, so don't retype it.
 - [ ] **Voice.** A teammate records about 20 s of speech, saved as `public/audio/voice.ogg` (CC0 or our own). The WebAudio placeholder is used until then.
 - [ ] Render the full backup video (`npm run cinematic`, about 15 min) and copy it to the booth laptop.
 - [ ] Booth rehearsal on the actual laptop and display: check the fps overlay (F10) and the text size from 2 m.
@@ -42,8 +45,7 @@
 ## Not built (by choice, see DECISIONS.md)
 
 - Highway moment (D5, cut).
-- Minimap (the phone's Map app shows the belief map instead).
-- Physics engine / post-processing (style guide: no bloom, no glow).
+- Physics engine (Rapier): the walk needs only 2D wall tests.
 
 ## Items to verify before quoting numbers on stage
 
@@ -58,3 +60,6 @@
 ## Known quirks
 
 - The HUD publishes at 10 Hz, so the timeline can lag the panels by up to 100 ms.
+- The minimap repaints its 240 m belief map each time you move 20 m (about 15k map samples, a few ms).
+- The figure is a placeholder mannequin with rigid limbs; see the Mixamo TODO above.
+- three.js logs "PCFSoftShadowMap has been removed" (it falls back to PCF) and a deprecation for `THREE.Clock` from R3F; both are harmless.

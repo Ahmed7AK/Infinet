@@ -71,6 +71,8 @@ export interface Sim {
   readonly scenarioDef: Scenario | null;
   /** renderer: best Wi-Fi signal at p, from Infinet's coverage map (belief) or the simulated truth */
   wifiCoverage(p: Vec2, which: 'belief' | 'truth'): { dbm: number; txId: string | null };
+  /** renderer: best 5G RSRP at p (dBm, incl. indoor loss), from Infinet's map (belief) or the simulated truth */
+  cellCoverage(p: Vec2, which: 'belief' | 'truth'): { dbm: number; txId: string | null };
   /** bumped whenever the maps are rebuilt (map staleness change) */
   readonly mapsVersion: number;
   /** scripted position (tour/batch) at the current time */
@@ -196,6 +198,17 @@ class SimImpl implements Sim {
       if (!g || !g.contains(p)) continue;
       const s = eirp + g.sample(p);
       if (s > dbm) { dbm = s; txId = m.tx.id; }
+    }
+    return { dbm, txId };
+  }
+
+  cellCoverage(p: Vec2, which: 'belief' | 'truth') {
+    let dbm = -200, txId: string | null = null;
+    for (const m of this.maps.byTx.values()) {
+      if (m.tx.kind !== 'cell') continue;
+      const g = which === 'belief' && m.belief ? m.belief : null;
+      const v = g && g.contains(p) ? g.sample(p) : cellTruthAt(m, p).rsrp;
+      if (v > dbm) { dbm = v; txId = m.tx.id; }
     }
     return { dbm, txId };
   }

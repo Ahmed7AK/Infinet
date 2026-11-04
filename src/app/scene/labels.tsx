@@ -7,10 +7,10 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import * as THREE from 'three';
 import { useUi } from '../driver';
-import { worldLabels } from './Networks';
+import { worldLabels } from '../network/labels';
 
 export type V3 = [number, number, number];
-export interface LabelItem { key: string; pos: V3 | (() => V3); z?: number; node: ReactNode; /** cards: placed beside the point, kept inside the clear world area between the panels */ card?: 'left' | 'below-left' }
+export interface LabelItem { key: string; pos: V3 | (() => V3); z?: number; node: ReactNode; /** cards: placed beside the point, kept inside the clear world area between the panels */ card?: 'above' | 'below' }
 
 export const camRef: { cam: THREE.Camera | null; w: number; h: number } = { cam: null, w: 1, h: 1 };
 
@@ -24,7 +24,8 @@ export function CamExport() {
 export function LabelLayer() {
   const snap = useUi((s) => s.snap);
   const view = useUi((s) => s.view);
-  const items = useMemo(() => (snap ? worldLabels(snap, view) : []), [snap, view]);
+  const vision = useUi((s) => s.vision);
+  const items = useMemo(() => (snap ? worldLabels(snap, view, vision) : []), [snap, view, vision]);
   const els = useRef(new Map<string, HTMLDivElement>());
   const itemsRef = useRef(items);
   itemsRef.current = items;
@@ -48,14 +49,14 @@ export function LabelLayer() {
         el.style.display = off ? 'none' : '';
         if (off) continue;
         let px = x, py = y;
+        const w = el.offsetWidth * k, h = el.offsetHeight * k;
         if (it.card) {
-          const w = el.offsetWidth * k, h = el.offsetHeight * k;
-          if (it.card === 'left') { px = x - w - 24 * k; py = y - h * 0.9; } else { px = x - w - 24 * k; py = y + 16 * k; }
-          const safeL = (48 + 420 + 16) * k, safeR = camRef.w - (48 + 420 + 16) * k;
-          const safeT = 130 * k, safeB = camRef.h - (48 + 140 + 70) * k;
-          px = Math.min(Math.max(px, safeL), safeR - w);
+          // a card floats above its point, kept clear of the HUD (strip on top, phone bottom-right, map bottom-left)
+          if (it.card === 'above') { px = x - w / 2; py = y - h - 18 * k; } else { px = x + 24 * k; py = y + 12 * k; }
+          const safeT = 120 * k, safeB = camRef.h - 150 * k, safeR = camRef.w - 0.27 * camRef.w;
+          px = Math.min(Math.max(px, 24 * k), safeR - w);
           py = Math.min(Math.max(py, safeT), safeB - h);
-        }
+        } else { px = x - w / 2; py = y - h; }
         el.style.transform = `translate3d(${px.toFixed(1)}px, ${py.toFixed(1)}px, 0) scale(${k})`;
       }
     };

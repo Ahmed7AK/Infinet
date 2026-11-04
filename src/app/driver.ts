@@ -35,6 +35,8 @@ const IDLE_TO_ATTRACT_S = 45;
 export interface UiState {
   snap: SimSnapshot | null;
   scenario: Playable;
+  /** Network Vision (N): the world desaturates and the network layer lights up (plan §4.2, §7.3) */
+  vision: boolean;
   view: ViewMode;
   mode: Mode;
   live: boolean;
@@ -57,7 +59,7 @@ export interface UiState {
 }
 
 export const useUi = create<UiState>(() => ({
-  snap: null, scenario: 'building-exit', view: 'belief', mode: 'free', live: false,
+  snap: null, scenario: 'building-exit', vision: false, view: 'belief', mode: 'free', live: false,
   phoneUp: false, app: null, sel: 0, labSel: 0, notes: [], caption: null, help: false, perf: false,
   slow: false, holdB: false, fading: false, markers: {}, unread: 0, shield: [], mapsVersion: 0, fps: 0,
 }));
@@ -82,8 +84,10 @@ class Driver {
   private fpsT = 0;
   keys = new Set<string>();
   idleS = IDLE_TO_ATTRACT_S;
-  /** camera yaw (radians) so WASD follows the screen */
+  /** camera yaw (radians, compass: 0 = north) so WASD follows the screen */
   cameraYaw = 0;
+  /** mouse look (pointer lock): yaw offset and pitch the camera rig adds, and when the mouse last moved */
+  look = { yaw: 0, pitch: 0, at: -1e9 };
   player: { pos: Vec2; vel: Vec2; headingDeg: number } = { pos: [0, 0], vel: [0, 0], headingDeg: 0 };
   lab: Partial<LabState> = {};
 
