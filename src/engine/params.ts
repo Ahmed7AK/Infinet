@@ -157,14 +157,19 @@ export const PARAMS = {
   leoGuardAfterMs: p(450, 'ASSUMPTION: protection lasts past the longest assumed window'),
   leoStretchMs: p(90, 'ASSUMPTION: extra jitter-buffer depth during a predicted spike'),
 
-  // ───────────── Trust gate (plan §9.7) — design choices, all ASSUMPTION ─────────────
-  flagUnknownDevice: p(2, 'ASSUMPTION (design choice): known name, BSSID not in map/profile for this area'),
-  flagDowngrade: p(3, 'ASSUMPTION (design choice): weaker security than enrolled/expected'),
-  flagSignalAnomaly: p(2, 'ASSUMPTION (design choice): observed − predicted > threshold'),
-  flagNewcomer: p(2, 'ASSUMPTION (design choice): second device for a name already seen here'),
-  flagChannel: p(1, 'ASSUMPTION (design choice): channel/band inconsistent with the known AP'),
-  anomalyDb: p(12, 'ASSUMPTION: ≈2σ of combined shadowing + map error'),
-  blockScore: p(4, 'ASSUMPTION (design choice): block at score ≥ 4'),
+  // ───────────── Trust gate (Security spec v1.0 §2 and §4) ─────────────
+  anomalyDb: p(12, 'Spec §4 "too strong here": beyond the map\'s error (≈ ±5 dB in the pilot). The simulated map\'s error plus per-scan fading is wider, so 12 dB (≈ 2σ)'),
+  probeTimeoutMinMs: p(1000, 'RFC 6298 initial RTO (1 s): the probe never gives up sooner'),
+  probeTimeoutRtts: p(3, 'ASSUMPTION: the probe waits 3 × the link\'s normal round trip ("satellite patience", spec §2)'),
+  typicalRttWifiMs: p(50, 'Spec §4: the probe is one round trip, tens of milliseconds on 5G or terrestrial Wi-Fi'),
+  typicalRtt5gMs: p(50, 'Spec §4: tens of milliseconds on 5G'),
+  typicalRttSatMs: p(650, 'Spec §4: about 0.6 s on GEO satellite (IIUM 2026: 600–700 ms clear sky); a satellite link is judged by its worst normal case'),
+  canaryRtts: p(2, 'Spec §4: canaries run in parallel with the probe; the TLS and portal canaries need TCP + TLS 1.3, 2 round trips'),
+  unreachableRetryS: p(15, 'ASSUMPTION: an Unreachable network is checked again after 15 s (spec §2: "the check retries later")'),
+  authFailPackets: p(1, 'Spec §2: one or more probe packets that arrive but fail authentication give Blocked (WireGuard drops them silently; the probe counts them)'),
+  floodNewNames: p(8, 'ASSUMPTION (spec §6 leaves N open): 8 or more new names within the flood window raise the flood alert'),
+  floodWindowS: p(5, 'ASSUMPTION: the flood alert counts new names over the last 5 s of scans'),
+  liveProbeS: p(1.2, 'Live hotspots: the probe is simulated and takes a join (assocPskMs 50–200 ms) + DHCP (median ≈ 0.95 s, dhcpS) + 2 round trips'),
 
   // ───────────── Voice / quality ─────────────
   codecDelayMs: p(25, 'ASSUMPTION: G.711-class codec + 5 ms look-ahead + packetisation'),

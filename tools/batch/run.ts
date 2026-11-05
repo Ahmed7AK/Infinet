@@ -28,7 +28,10 @@ const METRICS: Array<{ k: keyof PolicyResult; label: string; unit: string; dp: n
   { k: 'mosMin5', label: 'MOS (worst 5 s)', unit: '', dp: 2 },
   { k: 'fakeAdmissionFrames', label: 'Voice frames sent over a fake network', unit: '', dp: 1 },
   { k: 'invariantViolations', label: 'Frames on unchecked/Blocked networks', unit: '', dp: 1 },
-  { k: 'wronglyBlocked', label: 'Real networks wrongly blocked', unit: '', dp: 2 },
+  { k: 'fakePlainFrames', label: 'Frames a fake network could read (not tunnelled)', unit: '', dp: 1 },
+  { k: 'fakeAccepted', label: 'Fake networks accepted (Trusted or Tunnel only; ciphertext only)', unit: '', dp: 2 },
+  { k: 'wronglyBlocked', label: 'Real networks blocked', unit: '', dp: 2 },
+  { k: 'realUnreachable', label: 'Real networks unreachable (reported apart)', unit: '', dp: 2 },
   { k: 'dupExtraPct', label: 'Extra data from duplication', unit: '%', dp: 2 },
   { k: 'falseDead', label: 'False "link dead" verdicts', unit: '', dp: 2 },
 ];
@@ -76,7 +79,7 @@ for (const sc of scenarios) {
   console.log(`${sc}: ${runs} runs in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   writeFileSync(join(outDir, `${sc}.json`), JSON.stringify(rows));
   const cols = Object.keys(rows[0]);
-  writeFileSync(join(outDir, `${sc}.csv`), [cols.join(','), ...rows.map((r) => cols.map((c) => (r as any)[c]).join(','))].join('\n'));
+  writeFileSync(join(outDir, `${sc}.csv`), [cols.join(','), ...rows.map((r) => cols.map((c) => { const x = (r as any)[c]; return x && typeof x === 'object' ? `"${JSON.stringify(x).replace(/"/g, "'")}"` : x; }).join(','))].join('\n'));
   summary.scenarios[sc] = {};
   md += `## ${sc}\n\n| Metric | ${ALL_POLICIES.map((p) => POLICY_LABEL[p]).join(' | ')} |\n|---|${ALL_POLICIES.map(() => '---').join('|')}|\n`;
   for (const m of METRICS) {
@@ -98,6 +101,20 @@ for (const sc of scenarios) {
     summary.scenarios[sc].infinet.predLeadS = { mean: mean(lead), median: quant(lead, 0.5), p05: quant(lead, 0.05) };
     md += `\nInfinet prediction: switched a mean of **${fmt(mean(lead), 2)} s** (median ${fmt(quant(lead, 0.5), 2)} s, p5 ${fmt(quant(lead, 0.05), 2)} s) before the Wi-Fi actually crossed −75 dBm` + (err.length ? `; predicted-vs-true crossing error mean ${fmt(mean(err), 2)} s.` : '.') + '\n';
   }
+  // spec §2: time from "appears" to verdict, per link type (Infinet), average and worst run
+  const vm = rows.filter((r) => r.policy === 'infinet' && r.verdictMs);
+  const vLine: string[] = [];
+  for (const lt of ['wifi', '5g', 'sat'] as const) {
+    const xs = vm.map((r) => r.verdictMs![lt]).filter((x): x is NonNullable<typeof x> => !!x);
+    if (!xs.length) continue;
+    const avg = xs.reduce((p, q) => p + q.mean * q.n, 0) / xs.reduce((p, q) => p + q.n, 0);
+    const worst = Math.max(...xs.map((x) => x.worst));
+    (summary.scenarios[sc].infinet as any)[`verdictMs_${lt}`] = { mean: avg, worst };
+    vLine.push(`${lt === 'wifi' ? 'Wi-Fi' : lt === '5g' ? '5G' : 'satellite'} ${fmt(avg, 0)} ms average, ${fmt(worst, 0)} ms worst`);
+  }
+  if (vLine.length) md += `
+Time to verdict (Infinet, from "appears" to verdict): ${vLine.join(' · ')}. Red-flag blocks take one scan.
+`;
   md += '\n';
   writeFileSync(join(outDir, 'charts', `${sc}-frozen.svg`), frozenChart(sc, rows));
 }
@@ -108,7 +125,7 @@ if (property > 0) {
   let violations = 0, fake = 0;
   for (let i = 0; i < property; i++) {
     const sc = r.next() < 0.6 ? 'cafe-twin' : 'building-exit';
-    const res = createSim(sc, 900_000 + i, { policies: ['infinet'], lab: { attackerMode: r.next() < 0.5 ? 'intercept' : 'relay', attackerOffsetDb: r.uniform(0, 25), deauth: r.next() < 0.7, mapStaleness: r.uniform(0, 1), walkSpeed: r.uniform(1.0, 1.6) } }).runToEnd()[0];
+    const res = createSim(sc, 900_000 + i, { policies: ['infinet'], lab: { attackerMode: r.next() < 0.5 ? 'intercept' : 'relay', attackerOffsetDb: r.uniform(0, 25), deauth: r.next() < 0.7, mapStaleness: r.uniform(0, 1), walkSpeed: r.uniform(1.0, 1.6), cafeBlocksUdp: r.next() < 0.2 } }).runToEnd()[0];
     violations += res.invariantViolations; fake += res.fakeAdmissionFrames;
   }
   summary.property = { runs: property, violations, fakeAdmissionFrames: fake };

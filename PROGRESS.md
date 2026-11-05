@@ -4,35 +4,39 @@
 
 | Area | State |
 |---|---|
-| Engine: radio, maps, prediction, trust, LEO/GEO, voice, policies B1/B2/B3/Infinet + ablations | Done · 22 tests pass |
+| Engine: radio, maps, prediction, trust, LEO/GEO, voice, policies B1/B2/B3/Infinet + ablations | Done · 36 tests pass |
+| Security spec v1.0: six verdicts (Checking · Trusted · Tunnel · Unreachable · Blocked · Unchecked), weighted red flags (one flag caps at Tunnel; two high, or high + medium, blocks), probe with max(1 s, 3 × RTT) timeouts, anchor down fails closed, beacon-flood freeze, deauth falls back to the warm 5G tunnel at once | Done · `tests/security.test.ts`; table in DECISIONS.md |
 | Scenarios: leaving the building, fake café Wi-Fi, desert site | Done · demo seeds 26 / 21 / 16 (near median) |
 | 3D world, realistic (plan D3): HDR skies with a measured, shadow-casting sun, an indoor ceiling light, PBR textures, 33 Blender-built and 67 Poly Haven props, 37 Rocketbox people, third-person camera with collision | Done |
 | Life in the scene (scene-only, the engine never sees it): moving traffic (IDM) that stops at the zebra and for people, 22 parked cars, walkers on both pavements, a crosser, people at the bus stop, café, meeting room and site; swaying palms, café fans, a windsock | Done |
-| Network Vision (N): grade, 1 m heatmap with −67 / −75 / −100 dBm contours, belief · truth · error (Shift+N), tunnel tube, packets on every hop, sectors, beacons, backhaul, anchor, satellites, trust holograms, edge countdown | Done |
+| Network Vision (N), restyled 5 Nov: navy grade that leaves network objects in colour, dot-grid heatmap with −67 / −75 / −100 dBm contours, beacons coloured by verdict, belief · truth · error (Shift+N), tunnel tube, packets on every hop, sectors, beacons, backhaul, anchor, satellites, trust holograms, edge countdown | Done |
 | HUD (plan §8): scene title, comparison strip with edge-seen / Wi-Fi-dies markers, Vision tag + legend, hints, notifications, rotating minimap, captions | Done |
-| Phone (Infinet OS), peeking bottom-right: Infinet, Networks, Call, Map, Shield, Lab, Sim notes, Credits | Done |
-| Modes: free roam, tour (T), attract (45 s idle), slow-mo, fast travel | Done |
+| Phone (Infinet OS), peeking bottom-right: Infinet, Networks, Call, Map, Shield, **Tunnel** (live diagram: Hamad → anchor → road → you, five stages, a caption that pops up when something happens), Lab (café attack variants, attacker mode, café blocks UDP, anchor server, anchor-down moment), Sim notes, Credits | Done |
+| Modes: free roam, tour (T), attract (45 s idle), slow-mo, fast travel; scene jump (1 · 2 · 3 or the chips under the title) and M to skip to the moment | Done |
+| Live Wi-Fi scan (spec §6): `tools/scanner-mac` (Swift menu-bar app, loopback-only server, token + Origin + Host checks), anonymises every non-`Infinet-Demo-` network before it leaves the app; the page checks again, places a new hotspot where the walker first heard it and screens it for real (probe simulated). `?live=replay` is a synthetic example for the hosted site | Done · tested with `--fake`; a real phone hotspot not yet tried at the booth |
 | Booth hardening: offline, auto-reload on error / WebGL loss, F9 reset | Done · `npm run qa` 14/14 PASS (61 fps headless; 60 fps in every zone) |
-| Batch: 300 runs × 3 scenarios + property test | Done → `results/2026-11-04/SUMMARY.md` |
+| Batch: 300 runs × 3 scenarios + property test | Done → `results/2026-11-05/SUMMARY.md` (2026-11-04 kept for comparison) |
 | Screenshots (17 beats, Reality and Vision) | Done → `results/shots/` (old style-guide shots kept in `results/shots-styleguide/`) |
 | Hosting for feedback: public repo github.com/Ahmed7AK/Infinet, live at https://infinet-sim.vercel.app (redeploys on every push to main), first-load progress screen | Done |
 | Cinematic recorder | Done (`npm run cinematic`); full video not yet rendered |
 
-## Batch headline (results/2026-11-04, 300 runs per scenario, simulated)
+## Batch headline (results/2026-11-05, 300 runs per scenario, simulated)
 
 | Scenario | Today's phone (B1) frozen, mean · p95 | Infinet frozen, mean · p95 | Calls survived B1 → Infinet |
 |---|---|---|---|
 | Leaving the building | 6.56 s · 18.96 s | 0.00 s · 0.00 s | 202 → 300 / 300 |
-| Fake café Wi-Fi | 6.48 s · 18.90 s | 0.16 s · 0.00 s | 200 → 299 / 300 |
+| Fake café Wi-Fi | 11.45 s · 24.92 s | 0.16 s · 0.00 s | 165 → 299 / 300 |
 | Desert site | 12.68 s · 20.94 s | 5.15 s · 6.48 s | 60 → 300 / 300 |
 
-- Property test: across 5,000 randomised runs, Infinet sent 0 voice frames over a fake, unchecked or Blocked network.
+- Property test: across 5,000 randomised runs (now including the attacker's relay mode and deauth on/off), Infinet sent 0 voice frames over a fake, unchecked or Blocked network.
+- The café row is not comparable with 2026-11-04: the café network is now WPA2 and the attack has three variants (open copy · perfect copy · downgrade, D11), so today's phone freezes longer (6.48 s → 11.45 s) and survives less often (200 → 165). Infinet is unchanged at 0.16 s.
 - Prediction switched a mean of 3.39 s before the Wi-Fi crossed −75 dBm (median 2.90 s).
 
 **Read before quoting:**
 - In the building exit, *Infinet without prediction* also freezes 0.00 s. What saves the call is checking before use plus duplicating over both paths. Prediction adds lead time (3.4 s) and a slightly lower voice loss (0.31 % vs 0.34 %), at the cost of more duplication (4.4 % extra data vs 2.4 % without it). Don't claim that prediction alone prevents the freeze.
 - In the desert, Infinet still freezes about 5 s during the LEO outage (router failover 2–5 s). The win is that it never declares the link dead (0 false verdicts against B3's 10) and keeps the call. B3's longest freeze (5.6 s) is close to Infinet's (4.9 s).
-- *Infinet without trust check* wrongly blocks the real café network (0.99 per run) and sends 395 frames to the copy. That's the ablation showing the trust check matters.
+- *Infinet without trust check* sends 412 voice frames per run to the copy (ciphertext only, inside the tunnel) and accepts the fake network in about half the runs (0.48). That's the ablation showing the trust check matters.
+- Time to verdict: 5G 60 ms average (80 ms worst) leaving the building; café Wi-Fi 906 ms average but **23.7 s worst**. The worst case is likely a real network that stayed Unreachable through repeated retries; not yet investigated, so don't quote a café worst-case verdict time.
 
 ## TODO (needs a person or an asset)
 
@@ -47,6 +51,8 @@
 - [ ] Render the full backup video (`npm run cinematic`, about 15 min) and copy it to the booth laptop.
 - [ ] Booth rehearsal on the actual laptop and display: check the fps overlay (F10) and the text size from 2 m.
 - [ ] Optional: a live bridge to the real Infinet prototype (Rashid). Not built.
+- [ ] **Live scan at the booth.** Build the scanner (`tools/scanner-mac/build.sh`), allow Location, and rehearse with two real phone hotspots named `Infinet-Demo-Hotspot` (start the WPA2/3 one first, then an open one with the same name). Only tested with `--fake` so far.
+- [ ] Optional: Rashid's Linux scanner sends the same WebSocket messages (format in `tools/scanner-mac/README.md`).
 
 ## Not built (by choice, see DECISIONS.md)
 

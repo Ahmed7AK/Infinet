@@ -13,7 +13,8 @@ import { anchorPos, geoSat, isOnWifi, leoSat, visibleTx } from './NetworkLayer';
 
 const w3 = (x: number, y: number, h = 0): V3 => [x, h, -y];
 const TX = LAYOUT.transmitters;
-const SEC: Record<string, string> = { OPEN: 'Open', OWE: 'Enhanced Open', 'WPA2-PSK': 'WPA2', 'WPA3-SAE': 'WPA3', 'WPA3-ENT': 'WPA3-Enterprise' };
+const SEC: Record<string, string> = { OPEN: 'Open', WEP: 'WEP', 'WPA-TKIP': 'WPA/TKIP', OWE: 'Enhanced Open', 'WPA2-PSK': 'WPA2', 'WPA2/3': 'WPA2/3', 'WPA2-ENT': 'WPA2-Enterprise', 'WPA3-SAE': 'WPA3', 'WPA3-ENT': 'WPA3-Enterprise' };
+const ANON_DOTS = 48; // nearest anonymous networks drawn as dots (Vision); the rest are only counted
 
 function trustFor(s: SimSnapshot, t: (typeof TX)[number]): TrustView | undefined {
   if (t.kind === 'cell') return s.infinet.trust[`cell:${t.net}`];
@@ -23,6 +24,22 @@ function trustFor(s: SimSnapshot, t: (typeof TX)[number]): TrustView | undefined
 function Badge({ tier }: { tier: Tier }) {
   const b = badge[tier];
   return <span className="badge" style={{ color: b.color, borderColor: b.color }}><b>{b.icon}</b> {b.word}</span>;
+}
+
+function holo(tv: TrustView, name: string) {
+  return (
+    <div className={`holo ${tv.tier}`}>
+      <div className="hd"><span className="n">{name}</span><Badge tier={tv.tier} /></div>
+      <ul>
+        {tv.steps.map((st, i) => (
+          <li key={i} className={st.ok === null ? 'wait' : st.ok ? 'good' : 'bad'}>
+            <span className="m">{st.ok === null ? '…' : st.ok ? '✓' : '✕'}</span><span>{st.text}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="carry">May carry: {tv.mayCarry}</div>
+    </div>
+  );
 }
 
 export function worldLabels(s: SimSnapshot, view: string, vision: boolean): LabelItem[] {
@@ -69,30 +86,43 @@ export function worldLabels(s: SimSnapshot, view: string, vision: boolean): Labe
     }
   }
 
-  // trust hologram (both views)
-  for (const tv of Object.values(s.infinet.trust)) {
-    if (tv.net.startsWith('cell') || !tv.steps.length) continue;
-    const recent = tv.decidedT !== undefined && s.t - tv.decidedT < 12 && tv.firstSeenT > 0.5;
-    if (!(tv.tier === 'checking' || tv.tier === 'blocked' || recent)) continue;
-    const t = TX.find((x) => x.bssid === tv.bssid);
-    if (!t || (t.attacker && !s.truth.attackerOn)) continue;
-    const name = t.attacker ? NET_NAME['cafe-guest'] : NET_NAME[t.net] ?? tv.ssid;
+  // live networks from the laptop's scanner (spec §6), placed where they were first heard. Demo hotspots
+  // (Infinet-Demo-…) are named, in both views; everyone else is an anonymous dot, in Vision only.
+  const [wx, wy] = s.player.pos;
+  const anon = s.scan.filter((e) => e.live && e.anon && e.pos)
+    .sort((a, b) => Math.hypot(a.pos![0] - wx, a.pos![1] - wy) - Math.hypot(b.pos![0] - wx, b.pos![1] - wy)).slice(0, ANON_DOTS);
+  if (vision) for (const e of anon) out.push({ key: `anon:${e.bssid}`, pos: w3(e.pos![0], e.pos![1], 1.0), z: 0, node: <div className="adot" title="Someone else's network: anonymous, never joined" /> });
+  for (const e of s.scan) {
+    if (!e.live || e.anon || !e.pos) continue;
+    const tv = s.infinet.trust[e.bssid];
     out.push({
-      key: `trust:${tv.bssid}`, pos: w3(t.pos[0], t.pos[1], t.pos[2] + 0.5), z: 3, card: 'above',
+      key: `live:${e.bssid}`, pos: w3(e.pos[0], e.pos[1], 1.5), z: 2,
       node: (
-        <div className={`holo ${tv.tier}`}>
-          <div className="hd"><span className="n">{name}</span><Badge tier={tv.tier} /></div>
-          <ul>
-            {tv.steps.map((st, i) => (
-              <li key={i} className={st.ok === null ? 'wait' : st.ok ? 'good' : 'bad'}>
-                <span className="m">{st.ok === null ? '…' : st.ok ? '✓' : '✕'}</span><span>{st.text}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="carry">May carry: {tv.mayCarry}</div>
+        <div className={`ntag wifi live ${tv?.tier === 'blocked' ? 'threat' : ''}`}>
+          <span className="dot" /><span className="livetag">LIVE</span><span className="n">{e.ssid}</span>
+          <span className="d">ch {e.channel} · {fmtDb(e.rssiDbm)} · {SEC[e.security] ?? e.security}</span>
+          {tv && <Badge tier={tv.tier} />}
         </div>
       ),
     });
+  }
+
+  // trust hologram (both views)
+  for (const tv of Object.values(s.infinet.trust)) {
+    if (tv.net.startsWith('cell') || !tv.steps.length) continue;
+    const recent = tv.decidedT !== undefined && s.t - tv.decidedT < 12 && (tv.firstSeenT > 0.5 || !!tv.live);
+    if (!(tv.tier === 'checking' || tv.tier === 'blocked' || recent)) continue;
+    if (tv.live) {
+      const e = scan.get(tv.bssid);
+      if (!e?.pos || e.anon) continue;
+      out.push({ key: `trust:${tv.bssid}`, pos: w3(e.pos[0], e.pos[1], 2.1), z: 3, card: 'above', node: holo(tv, e.ssid) });
+      continue;
+    }
+    // the copy can wear the café's own BSSID (spec variants), so place it by what it is, not by its address
+    const t = tv.net === 'twin' ? TX.find((x) => x.attacker) : TX.find((x) => x.bssid === tv.bssid);
+    if (!t || (t.attacker && !s.truth.attackerOn)) continue;
+    const name = t.attacker ? NET_NAME['cafe-guest'] : NET_NAME[t.net] ?? tv.ssid;
+    out.push({ key: `trust:${tv.bssid}`, pos: w3(t.pos[0], t.pos[1], t.pos[2] + 0.5), z: 3, card: 'above', node: holo(tv, name) });
   }
 
   // what the copy gets from the comparison phone (truth only)

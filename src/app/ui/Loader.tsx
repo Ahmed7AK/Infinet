@@ -54,7 +54,7 @@ export function Loader() {
           <span className="num">{loaded} of {total} assets{errors.length ? ` · ${errors.length} failed` : ''}</span>
         </div>
         <p className="loader-p">The first visit downloads every model, person and texture. Later visits are quicker.</p>
-        <p className="loader-keys"><b>WASD</b> walk · <b>drag</b> look · <b>N</b> Network Vision · <b>T</b> tour · <b>↑</b> phone</p>
+        <p className="loader-keys"><b>WASD</b> walk · <b>drag</b> look · <b>N</b> Network Vision · <b>1 2 3</b> jump to a scene · <b>M</b> skip to the moment · <b>T</b> tour · <b>↑</b> phone</p>
       </div>
     </div>
   );

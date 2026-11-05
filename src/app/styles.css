@@ -39,6 +39,14 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 .scene .k { font: 600 13px/1 var(--mono); letter-spacing: 0.14em; color: var(--mute); text-transform: uppercase; }
 .scene .t { font: 600 24px/1.2 var(--sans); margin-top: 6px; }
 .scene .p { font: 400 16px/1.35 var(--sans); color: var(--mute); margin-top: 4px; }
+.scene .jump { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; text-shadow: none; }
+.chip { display: inline-flex; align-items: center; gap: 7px; font: 500 14px/1 var(--sans); color: var(--mute); background: rgba(12, 15, 21, 0.72); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px 5px 5px; cursor: pointer; }
+.chip kbd { font: 600 12px/1 var(--mono); color: var(--text); background: rgba(255,255,255,0.10); border-radius: 999px; padding: 4px 7px; }
+.chip:hover { color: var(--text); border-color: rgba(255,255,255,0.3); }
+.chip.on { color: var(--text); border-color: rgba(103, 232, 249, 0.6); }
+.chip.on kbd { background: var(--tunnel); color: #0b0e14; }
+.chip.skip { color: var(--tunnel); }
+.chip.skip kbd { color: var(--tunnel); background: rgba(103, 232, 249, 0.14); }
 
 /* ───── top-centre: comparison strip ───── */
 .strip { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 900px; padding: 10px 14px 12px; }
@@ -64,6 +72,7 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 .visiontag { position: absolute; top: 132px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; padding: 8px 14px; font: 500 15px/1 var(--sans); }
 .visiontag .t { font-weight: 600; color: var(--tunnel); letter-spacing: 0.02em; }
 .visiontag .lg { display: flex; gap: 12px; color: var(--mute); font: 500 13px/1 var(--mono); }
+.visiontag .lg .rings b { font-weight: 700; margin-left: 4px; }
 .visiontag .lg i { display: inline-block; width: 18px; height: 0; vertical-align: middle; margin-right: 5px; border-top: 3px solid; }
 .visiontag .lg i.dash { border-top-style: dashed; }
 .visiontag .lg i.fill { height: 10px; border: 0; border-radius: 2px; }
@@ -103,7 +112,9 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 .phone .scr { position: relative; height: 100%; border-radius: 36px; overflow: hidden; background: linear-gradient(180deg, #11151d 0%, #0b0e14 100%); display: flex; flex-direction: column; }
 .phone .island { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 96px; height: 28px; border-radius: 16px; background: #000; z-index: 2; }
 .phone .status { display: flex; justify-content: space-between; align-items: center; padding: 14px 22px 6px; font: 600 15px/1 var(--sans); height: 46px; }
+.phone .status .l { display: flex; gap: 7px; align-items: center; }
 .phone .status .r { display: flex; gap: 6px; align-items: center; color: var(--mute); font: 500 13px/1 var(--mono); }
+.phone .status .shieldpill { font-size: 12px; padding: 4px 7px; }
 .phone .peek { display: flex; justify-content: space-between; align-items: center; padding: 4px 22px 10px; font: 500 15px/1.2 var(--sans); color: var(--mute); }
 .phone .peek .badge2 { background: var(--threat); color: #111; font: 700 13px/1 var(--mono); border-radius: 999px; padding: 3px 8px; }
 .phone .body { flex: 1; overflow: hidden; padding: 6px 16px 8px; display: flex; flex-direction: column; gap: 10px; }
@@ -128,6 +139,11 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 .net .l1 { display: flex; justify-content: space-between; align-items: center; font: 600 16px/1.2 var(--sans); }
 .net .l2 { display: flex; justify-content: space-between; font: 400 13px/1.3 var(--mono); color: var(--mute); margin-top: 4px; }
 .net .fl { font: 400 13px/1.3 var(--sans); color: var(--threat); margin-top: 3px; }
+.stages { display: flex; gap: 4px; justify-content: space-between; }
+.stages span { flex: 1; text-align: center; font: 500 12px/1 var(--sans); color: var(--dim); padding: 6px 0; border-radius: 999px; border: 1px solid rgba(255,255,255,0.08); }
+.stages span.done { color: var(--mute); border-color: rgba(103, 232, 249, 0.25); }
+.stages span.on { color: #0b0e14; background: var(--tunnel); border-color: var(--tunnel); font-weight: 600; }
+.livetag { margin-left: 6px; font: 700 10px/1 var(--mono); letter-spacing: 0.08em; color: #0b0e14; background: var(--check); border-radius: 4px; padding: 2px 4px; vertical-align: 2px; }
 .badge { display: inline-flex; align-items: center; gap: 4px; font: 600 13px/1 var(--sans); padding: 3px 7px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
 .labbadge { font: 600 13px/1.2 var(--sans); color: var(--check); border: 1px solid rgba(251,191,36,0.45); border-radius: 8px; padding: 6px 8px; }
 .ctl { display: flex; justify-content: space-between; padding: 7px 8px; border-radius: 8px; font: 400 15px/1.2 var(--sans); cursor: pointer; }
@@ -158,6 +174,9 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 .ntag.cell .dot { background: var(--cell); } .ntag.sat .dot { background: var(--sat); } .ntag.tunnel .dot { background: var(--tunnel); } .ntag.wired .dot { background: var(--wired); }
 .ntag.threat { border-color: rgba(248, 113, 113, 0.6); } .ntag.threat .dot { background: var(--threat); }
 .ntag.off { opacity: 0.6; }
+.ntag.live { border-color: rgba(251, 191, 36, 0.55); } .ntag.live .livetag { margin-left: 0; }
+.adot { width: 9px; height: 9px; border-radius: 50%; background: #8A93A6; opacity: 0.75; box-shadow: 0 0 0 3px rgba(138, 147, 166, 0.18); }
+.simtag.live { color: var(--check); border-color: rgba(251, 191, 36, 0.5); margin-top: 6px; }
 .ntag .n { font-weight: 600; }
 .ntag .d { font: 400 13px/1.2 var(--mono); color: var(--mute); }
 .holo { width: 330px; padding: 12px 14px; border-radius: 12px; background: rgba(8, 18, 26, 0.78); border: 1px solid rgba(103, 232, 249, 0.45); box-shadow: 0 0 24px rgba(103, 232, 249, 0.15), inset 0 0 30px rgba(103, 232, 249, 0.05); backdrop-filter: blur(6px); }

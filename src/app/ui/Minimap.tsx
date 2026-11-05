@@ -83,6 +83,13 @@ export function Minimap() {
         g.stroke(); g.setLineDash([]);
         if (inf.edgePoint) { g.fillStyle = tech.check; g.beginPath(); g.arc((inf.edgePoint[0] - px) * PX, (py - inf.edgePoint[1]) * PX, 5 / sc, 0, Math.PI * 2); g.fill(); }
       }
+      // live networks from the laptop's scanner, where they were first heard: demo hotspots amber, others grey
+      for (const e of s.scan) {
+        if (!e.live || !e.pos) continue;
+        const tier = e.anon ? undefined : s.infinet.trust[e.bssid]?.tier;
+        g.fillStyle = e.anon ? 'rgba(138,147,166,0.7)' : tier === 'blocked' ? tech.threat : tech.check;
+        g.beginPath(); g.arc((e.pos[0] - px) * PX, (py - e.pos[1]) * PX, (e.anon ? 2.5 : 4.5) / sc, 0, Math.PI * 2); g.fill();
+      }
       g.restore();
       // you: an arrow pointing up (the camera's direction), turned by your heading relative to it
       const rel = (s.player.headingDeg * Math.PI) / 180 - yaw;

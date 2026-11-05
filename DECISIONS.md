@@ -16,8 +16,22 @@ The plan (`INFINET_3D_SIM_PLAN.md`, §4.1) is the default. This file records wha
 | D8 | Renderer | three r186 via React Three Fiber 9, WebGL2. | |
 | D9 | RF geometry | All walls come from `src/world/layout.json`; the renderer extrudes the same polylines the propagation model uses. | |
 | D10 | Desert | Site router with LEO primary and GEO backup serving Site-Net Wi-Fi. | |
-| D11 | Café attack | Real `Cafe_Guest` is open with a captive portal; the copy is an open copy with the same name, stronger, with optional forged disconnects. The copy has no portal (it wants traffic to flow). | |
+| D11 | Café attack | **Changed 5 Nov (Security spec v1.0):** the real `Cafe_Guest` is WPA2-PSK with the password on the wall, no captive portal, no PMF. The copy has three variants (Lab): **open copy** (new BSSID, no password: the default, Blocked on its red flags in one scan), **perfect copy** (the café's BSSID and WPA2, possible because the password is public: it passes the screen, inherits the café's Tunnel only, and is counted as `fakeAccepted`; it only ever sees ciphertext), **downgrade** (the café's BSSID, no password: re-screened, one high flag caps it at Tunnel only and the probe decides). Optional forged disconnects (WPA2 without PMF). | Was: open café with a captive portal. |
 | D12 | Audio | Synthetic placeholder voice (a WebAudio formant buzz shaped by the jitter-buffer output) until a teammate's recording is added at `public/audio/voice.ogg`. | See PROGRESS.md. |
+
+## Security spec v1.0 (5 Nov, `Infinet_Security_Specification.pdf`)
+
+| Topic | As built | Notes |
+|---|---|---|
+| Verdicts (§2) | Checking · Trusted · Tunnel only · Unreachable · Blocked, plus Not checked for anonymous dots. Always-tunnel: a verdict only picks the road; the call is in the tunnel on every network. Engine tier ids are now the same words (`tunnel`, not `pipe`). | Replaces the old score/"Pipe" tiers. |
+| Red flags (§4) | new device (medium) · downgrade (high) · weak crypto: WEP, TKIP, WPA2/3 transition (medium) · too strong, > 12 dB over the belief map (medium) · look-alike, UTS #39 skeleton (high) · DNS canary (high). Any one flag caps at Tunnel only; two high, or one high and one medium, Block before anything is sent. | Replaces the points score and the Lab "block threshold". The old newcomer/channel flags are gone. |
+| Probe (§4) | Separate probe key in quarantine; authentication failure (≥ 1 packet) or a TLS canary mismatch → Blocked; no answer → Unreachable and retried (15 s, 2 s for 5G); a sign-in page stays Checking. Timeouts `max(1 s, 3 × typical RTT)` (RFC 6298 floor; 50 ms Wi-Fi/5G, 650 ms satellite); canaries 2 RTT, in parallel. | |
+| Anchor down (§5, D2) | **Fail closed** (Ahmed's choice). The phone infers "anchor down" only when the network answers but a fresh anchor handshake does not, so a satellite failover never reads as anchor down. Nothing leaves the tunnel; the call waits and drops after 8 s; Lab has an 8 s anchor-down moment. | |
+| Flood (§4) | ≥ 8 new names within 5 s raises the alert and freezes upgrades; verdicts already made stand. The first live batch is the baseline, not a flood. | ASSUMPTION thresholds. |
+| Live scan (§6) | Live entries are screened for real; their probe is simulated (1.2 s). Placed 2.5 m to the right of the walker where first heard; stale after 12 s; at most 256. **Trust on first use:** a live network is learned on first sight unless a flag says it is a copy (new device, downgrade, look-alike, DNS); weak crypto or a loud signal don't stop it learning. Two same-name hotspots that appear at the same moment are both Tunnel only. | macOS scanner app + replay; see `tools/scanner-mac/README.md`. |
+| Names (§6, I4) | Only `Infinet-Demo-…` names are shown; others are anonymous dots (scanner and page both enforce it). Names are decoded as strict UTF-8 from raw bytes, control and format characters stripped, 32 characters at most, and rendered as text. | |
+| Deauth | When forged disconnects knock the phone off the café, Infinet moves to any attached 5G whose tunnel is still up at once, even below the usable bar: losing the radio is certain, and a fresh check on lossy 5G only adds silence. | Found in a café seed where 5G indoors is weak: 4.7 s of freeze before the fix. |
+| Today's phone joins by name | B1/B2 auto-join a saved name even if its security type changed. Real phones usually also match the security type, so against the open-copy variant this is the worst case for today's phone. The perfect-copy variant (same name and WPA2) is the realistic attack against a phone that matches the type. | Judgement call; say so if asked. |
 
 ## Overrides and judgement calls during the build
 
@@ -26,7 +40,10 @@ The plan (`INFINET_3D_SIM_PLAN.md`, §4.1) is the default. This file records wha
 | 4 Nov | **Style guide look over the plan's realism** (Ahmed's choice). | The poster and style guide were already submitted with this look. Consistent brand at the booth. |
 | 4 Nov | Repo root is `~/code/Infinet` (not `infinet-sim/`). | Ahmed asked for that folder. `package.json` name is `infinet-sim`. |
 | 4 Nov | Dropped Rapier, postprocessing, N8AO. | No bloom/AO in the style guide; collisions are simple wall tests in 2D. |
-| 4 Nov | Words: **"Tunnel only"**, not "Pipe only", on screen. Engine tier id stays `pipe`. | Style guide states. |
+| 4 Nov | Words: **"Tunnel only"**, not "Pipe only", on screen. Engine tier id stays `pipe`. (5 Nov: the id is now `tunnel` too, with the spec's verdicts.) | Style guide states. |
+| 5 Nov | **The phone explains the tunnel.** The top strip shows *that* Infinet wins; the new Tunnel app ("How it works") pops up at each key moment and shows *how*: the roads, the one tunnel, the anchor, the check's stages, in one sentence each. | Ahmed: the top part didn't show how Infinet works. |
+| 5 Nov | **Network Vision restyle.** The world goes to a dark, cool night grade (luminance only, about −1.5 EV) under the heatmap too; the flat colour wash became a 1 m grid of dots whose size is the signal over a faint wash; thinner contours on a 7 × 7 m smoothed field; Wi-Fi beacon rings take the colour of Infinet's verdict. | Ahmed asked for a better-looking network mode. |
+| 5 Nov | **Scene jump.** Chips under the scene title (and 1 · 2 · 3) jump to a scene; M or the chip skips to its key moment or replays it. | Ahmed: jump instead of walking. |
 | 4 Nov | One 5G monopole (Cellular A, 3 sectors) and one rural RMa site for the desert. No rooftop small cell. | Enough to show the exit moment; fewer parameters to defend. |
 | 4 Nov | 5G path loss uses 3GPP TR 38.901 **NLOS** (max with LOS) everywhere. | Conservative; a city street is mostly NLOS to a monopole 200 m away. |
 | 4 Nov | LEO reconfiguration spike treated as an extra **one-way** delay of 30–80 ms. | Published measurements report RTT spikes; we split them to one direction to stay conservative. |

@@ -24,9 +24,20 @@ export const POLICY_DESC: Record<PolicyId, string> = {
   'infinet-noTrust': 'Ablation: Infinet with the trust check switched off.',
 };
 
-export type Security = 'OPEN' | 'OWE' | 'WPA2-PSK' | 'WPA3-SAE' | 'WPA3-ENT';
-export type Tier = 'trusted' | 'pipe' | 'blocked' | 'checking' | 'unchecked';
-export type HandshakeResult = 'pass' | 'fail' | 'timeout' | 'pending' | 'portal';
+/** Security as advertised in the beacon (RSN/WPA elements). 'WPA2/3' = WPA3 transition mode (downgradable). */
+export type Security = 'OPEN' | 'WEP' | 'WPA-TKIP' | 'OWE' | 'WPA2-PSK' | 'WPA2/3' | 'WPA2-ENT' | 'WPA3-SAE' | 'WPA3-ENT';
+/**
+ * Trust verdicts (Security spec §2, amends GP p.4). All traffic stays in the tunnel on every network;
+ * verdicts only choose the path: trusted = primary path for the tunnel, tunnel = backup path, unreachable and
+ * blocked = never. 'unreachable' (no answer yet, retried) keeps caution from counting as an attack.
+ * 'unchecked' = seen, never joined: other people's networks, shown as anonymous dots.
+ */
+export type Tier = 'trusted' | 'tunnel' | 'unreachable' | 'blocked' | 'checking' | 'unchecked';
+/** probe handshake through the candidate network: 'authfail' = packets arrived but failed authentication */
+export type HandshakeResult = 'pass' | 'authfail' | 'timeout' | 'pending' | 'portal';
+/** the café attack variants (spec §4): open copy (default), perfect copy (password and BSSID copied), downgrade */
+export type AttackVariant = 'copy' | 'perfect' | 'downgrade';
+export type LinkType = 'wifi' | '5g' | 'sat';
 export type ZoneId = 'office' | 'street' | 'desert';
 export type ScenarioId = 'building-exit' | 'cafe-twin' | 'desert-sat' | 'free';
 
@@ -71,7 +82,11 @@ export interface LiveMetrics {
   dupExtraPct: number;
 }
 
-export interface Flag { id: 'unknown-device' | 'downgrade' | 'signal-anomaly' | 'newcomer' | 'channel'; score: number; text: string; detail?: string }
+/** Red flags (spec §4 table). No flag decides alone: any one caps a network at Tunnel only; two high, or one
+ *  high and one medium, give Blocked. */
+export type FlagId = 'new-device' | 'downgrade' | 'weak-crypto' | 'too-strong' | 'look-alike' | 'dns';
+export interface Flag { id: FlagId; weight: 'high' | 'medium'; text: string; detail?: string }
+export type CanaryState = 'wait' | 'ok' | 'bad' | 'skip';
 
 export interface TrustView {
   bssid: string;
@@ -79,10 +94,21 @@ export interface TrustView {
   net: string;
   tier: Tier;
   flags: Flag[];
-  score: number;
+  /** security seen when the screen ran (a change re-opens the check) */
+  security?: Security;
   handshake?: HandshakeResult;
+  /** probe packets that arrived but failed authentication (WireGuard drops these silently; the probe counts them) */
+  authFailed?: number;
+  canaries?: { tls: CanaryState; dns: CanaryState; portal: CanaryState };
+  linkType: LinkType;
+  /** from the live hotspot scanner: the screen is real, the probe simulated */
+  live?: boolean;
   firstSeenT: number;
   decidedT?: number;
+  /** unreachable: when the check is tried again */
+  retryAt?: number;
+  /** where the check is (spec §4): appears → screen → quarantine → verdict → roam */
+  stage: 'screen' | 'quarantine' | 'verdict';
   reason: string;
   mayCarry: string;
   steps: Array<{ text: string; ok: boolean | null; t: number }>;
@@ -124,7 +150,15 @@ export interface PacketVis {
 
 export interface ScanEntry {
   bssid: string; ssid: string; net: string; security: Security; pmf: 'none' | 'optional' | 'required';
-  channel: number; band: '2.4' | '5'; rssiDbm: number; live?: boolean;
+  channel: number; band: '2.4' | '5'; rssiDbm: number;
+  /** raw SSID bytes as hex: equality and red flags use these, never the display string (spec §6) */
+  ssidHex: string;
+  /** from the live hotspot scanner (spec §6), placed where it was first detected */
+  live?: boolean;
+  /** someone else's network: no name kept, BSSID replaced by a salted hash; drawn as a dot */
+  anon?: boolean;
+  /** live entries: where the walker was when it was first detected (engine frame, m) */
+  pos?: Vec2;
 }
 
 export interface InfinetView {
@@ -137,6 +171,10 @@ export interface InfinetView {
   candidate?: string;
   candidateState?: 'idle' | 'checking' | 'ready';
   trust: Record<string, TrustView>;
+  /** the phone's own conclusion from liveness on every path: the anchor server is not answering (fail closed) */
+  anchorLost: boolean;
+  /** beacon-flood alert: many new names per scan; trust upgrades are frozen while it lasts */
+  flood: boolean;
   leoPattern?: { periodS: number; confidence: number; nextSpikeT?: number; protecting: boolean };
   pathRtts: Record<string, number[]>;  // recent RTT samples per path for the phone trace
   satPatient?: { rttMs: number; srttMs: number; rtoMs: number; normal: boolean };
@@ -146,6 +184,9 @@ export interface TruthView {
   attackerPos?: Vec2;
   attackerOn: boolean;
   attackerMode: 'intercept' | 'relay';
+  attackVariant: AttackVariant;
+  /** the BSSID the copy advertises (the café's own in the copied-BSSID variants) */
+  attackerBssid?: string;
   uplink: 'LEO' | 'GEO' | 'none';
   leoOutage: boolean;
   routerFailoverAt?: number;
@@ -175,12 +216,14 @@ export type SimEvent =
   | { t: number; type: 'check.start' | 'check.pass' | 'check.fail'; link: string; label: string }
   | { t: number; type: 'switch'; from: string; to: string; fromLabel: string; toLabel: string; frozenMs: number; policy: PolicyId }
   | { t: number; type: 'switch.done'; to: string; toLabel: string; frozenMs: number; policy: PolicyId }
-  | { t: number; type: 'trust.blocked' | 'trust.pipe' | 'trust.trusted' | 'trust.checking'; bssid: string; ssid: string; flags: Flag[]; reason: string; handshake?: HandshakeResult }
+  | { t: number; type: 'trust.blocked' | 'trust.tunnel' | 'trust.trusted' | 'trust.unreachable' | 'trust.checking'; bssid: string; ssid: string; flags: Flag[]; reason: string; handshake?: HandshakeResult; verdictMs?: number }
+  | { t: number; type: 'anchor.lost' | 'anchor.back' }
+  | { t: number; type: 'flood.on' | 'flood.off'; newNames: number }
   | { t: number; type: 'sat.pattern'; periodS: number; confidence: number }
   | { t: number; type: 'sat.failover'; to: 'GEO' | 'LEO'; rttMs: number }
   | { t: number; type: 'sat.outage' }
   | { t: number; type: 'call.frozen' | 'call.resumed' | 'call.dropped'; policy: PolicyId; frozenMs?: number }
-  | { t: number; type: 'attacker.start'; ssid: string; mode: string; offsetDb: number }
+  | { t: number; type: 'attacker.start'; ssid: string; mode: string; offsetDb: number; variant: AttackVariant }
   | { t: number; type: 'region.enter' | 'region.exit'; region: string }
   | { t: number; type: 'falsedead'; policy: PolicyId; link: string }
   | { t: number; type: 'nocoverage'; aheadS: number };
@@ -195,7 +238,11 @@ export interface LabState {
   mapStaleness: number;     // 0..1
   walkSpeed: number;        // m/s for routes
   baseline: 'b1' | 'b2' | 'b3';
-  blockThreshold: number;
+  attackVariant: AttackVariant;
+  /** the anchor server stops answering (spec §5 "anchor down" moment) */
+  anchorDown: boolean;
+  /** the real café Wi-Fi blocks UDP, as many hotels and offices do: the probe gets no answer */
+  cafeBlocksUdp: boolean;
 }
 
 export const DEFAULT_LAB: LabState = {
@@ -208,5 +255,7 @@ export const DEFAULT_LAB: LabState = {
   mapStaleness: 0,
   walkSpeed: 1.3,
   baseline: 'b1',
-  blockThreshold: 4,
+  attackVariant: 'copy',
+  anchorDown: false,
+  cafeBlocksUdp: false,
 };

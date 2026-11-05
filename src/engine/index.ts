@@ -18,12 +18,21 @@ import { Agent, NET_LABEL, netOf, type Ctx } from './policies/agent';
 import { B1, B2, B3 } from './policies/baselines';
 import { Infinet } from './policies/infinet';
 import { RouteFollower, routeFor, SCENARIOS, type Scenario } from './scenario/scenarios';
+import { utf8Hex } from './trust/trust';
+import type { LinkType, Security } from './types';
 
 export * from './types';
 export { PARAMS, VISUAL_NOTES } from './params';
 export { SCENARIOS, MUST_SCENARIOS } from './scenario/scenarios';
 export { LAYOUT } from './world/layout';
 export { geoLookAngle } from './geo';
+export { displayName, skeleton, utf8Hex, redFlags, screen, decideTier } from './trust/trust';
+
+/** One network from the live hotspot scanner (spec §6), already cleaned by the scanner: raw name as hex, display
+ *  name sanitised, other people's networks anonymised (no name, salted-hash BSSID). */
+export interface LiveEntry {
+  bssid: string; ssidHex: string; ssid: string; security: Security; channel: number; band: '2.4' | '5'; rssiDbm: number; anon: boolean;
+}
 
 export interface SimOptions {
   policies?: PolicyId[];
@@ -55,6 +64,10 @@ export interface PolicyResult {
   switches: number;
   predLeadS?: number;
   predErrS?: number;
+  /** spec §2 metrics (Infinet): copies that became Trusted or Tunnel only, genuine networks left Unreachable, time to verdict */
+  fakeAccepted?: number;
+  realUnreachable?: number;
+  verdictMs?: Partial<Record<LinkType, { mean: number; worst: number; n: number }>>;
 }
 
 export interface Sim {
@@ -77,6 +90,8 @@ export interface Sim {
   readonly mapsVersion: number;
   /** scripted position (tour/batch) at the current time */
   scriptedPlayer(): { pos: Vec2; vel: Vec2; headingDeg: number; done: boolean } | null;
+  /** live hotspot scanner input: the latest scan (2 Hz at most). New networks are placed where the walker is. */
+  setLiveScan(entries: LiveEntry[]): void;
 }
 
 const TWIN_UPLINK_OWD_MS = 25; // ASSUMPTION: attacker bridges to their own tethered LTE uplink
@@ -114,6 +129,9 @@ class SimImpl implements Sim {
   readonly durationS: number;
   private lastMosSample = 0;
   mapsVersion = 0;
+  private live = new Map<string, { e: LiveEntry; pos: Vec2; lastT: number }>();
+  private liveBatches = 0;
+  private ssidHexCache = new Map<string, string>();
 
   constructor(scenario: ScenarioId, seed: number, opts: SimOptions = {}) {
     this.seed = seed;
@@ -213,6 +231,50 @@ class SimImpl implements Sim {
     return { dbm, txId };
   }
 
+  setLiveScan(entries: LiveEntry[]) {
+    const first = this.liveBatches++ === 0;
+    const h = (this.player.headingDeg * Math.PI) / 180;
+    // placed beside the walker where it was first heard (2.5 m to the right, spread so dots don't stack)
+    for (const e of entries.slice(0, 256)) {
+      const cur = this.live.get(e.bssid);
+      if (cur) { cur.e = e; cur.lastT = this.t; continue; }
+      const k = this.live.size;
+      const side = 2.5 + (k % 4) * 1.2, along = (Math.floor(k / 4) % 5) * 1.5 - 3;
+      const pos: Vec2 = [this.player.pos[0] + Math.cos(h) * side + Math.sin(h) * along, this.player.pos[1] - Math.sin(h) * side + Math.cos(h) * along];
+      this.live.set(e.bssid, { e, pos, lastT: this.t });
+      // the first scan after connecting is what was already around: it doesn't count as new names for the flood alert
+      this.firstSeen.set(e.bssid, first ? -1e9 : this.t);
+    }
+    for (const [b, x] of this.live) if (this.t - x.lastT > 12) this.live.delete(b);
+  }
+
+  /** the live entries as scan results (no simulated path: they are only screened) */
+  liveScan(): ScanEntry[] {
+    const out: ScanEntry[] = [];
+    for (const [b, x] of this.live) {
+      out.push({ bssid: b, ssid: x.e.anon ? '' : x.e.ssid, ssidHex: x.e.anon ? '' : x.e.ssidHex, net: `live:${b}`, security: x.e.security, pmf: 'none',
+        channel: x.e.channel, band: x.e.band, rssiDbm: x.e.rssiDbm, live: true, anon: x.e.anon, pos: x.pos });
+    }
+    return out;
+  }
+
+  private hexOf(ssid: string): string {
+    let h = this.ssidHexCache.get(ssid);
+    if (h === undefined) { h = utf8Hex(ssid); this.ssidHexCache.set(ssid, h); }
+    return h;
+  }
+
+  /** what the copy advertises (spec §4): open copy (new BSSID, no password), perfect copy (the café's BSSID and
+   *  WPA2), downgrade (the café's BSSID, no password) */
+  private twinIdent(tx: Transmitter): { bssid: string; security: Security } {
+    const cafe = txById('ap-cafe');
+    switch (this.lab.attackVariant) {
+      case 'perfect': return { bssid: cafe.bssid!, security: cafe.security! };
+      case 'downgrade': return { bssid: cafe.bssid!, security: 'OPEN' };
+      default: return { bssid: tx.bssid!, security: tx.security! };
+    }
+  }
+
   eventsSince(cursor: number) {
     return { events: this.events.slice(cursor), cursor: this.events.length };
   }
@@ -282,7 +344,7 @@ class SimImpl implements Sim {
     this.attacker.mode = this.lab.attackerMode;
     this.attacker.eirp = this.twinEirp();
     this.attacker.lastDeauth = this.t - DEAUTH_PERIOD_S + 0.6;
-    this.emit({ t: this.t, type: 'attacker.start', ssid: 'Cafe_Guest', mode: this.lab.attackerMode, offsetDb: this.lab.attackerOffsetDb });
+    this.emit({ t: this.t, type: 'attacker.start', ssid: 'Cafe_Guest', mode: this.lab.attackerMode, offsetDb: this.lab.attackerOffsetDb, variant: this.lab.attackVariant });
   }
 
   private triggers() {
@@ -313,7 +375,7 @@ class SimImpl implements Sim {
     const pos = this.player.pos;
     this.triggers();
     this.sat.update(t, this.lab, (e) => this.emit(e));
-    // deauth: forged disconnects against the real café AP's clients (open network, no PMF → possible; trap #5)
+    // deauth: forged disconnects against the real café AP's clients (WPA2 without PMF → possible; trap #5)
     if (this.attacker.on && this.lab.deauth && t - this.attacker.lastDeauth >= DEAUTH_PERIOD_S) {
       this.attacker.lastDeauth = t;
       const realPmf = txById('ap-cafe').pmf;
@@ -337,10 +399,16 @@ class SimImpl implements Sim {
       if (!prev || truth > prev.rssi) bestByNet.set(tx.net, { rssi: truth, tx });
       const meas = truth + this.fading.next(tx.id);
       if (meas > -92) {
-        if (!this.firstSeen.has(tx.bssid!)) this.firstSeen.set(tx.bssid!, t);
-        scan.push({ bssid: tx.bssid!, ssid: tx.ssid!, net: tx.net, security: tx.security!, pmf: tx.pmf ?? 'none', channel: tx.channel ?? 36, band: tx.band ?? '5', rssiDbm: meas });
+        const id = tx.attacker ? this.twinIdent(tx) : { bssid: tx.bssid!, security: tx.security! };
+        if (!this.firstSeen.has(id.bssid)) this.firstSeen.set(id.bssid, t);
+        // two transmitters under one BSSID (the copied-BSSID variants): the scan shows the one heard loudest
+        const dup = scan.findIndex((x) => x.bssid === id.bssid);
+        if (dup >= 0 && scan[dup].rssiDbm >= meas) continue;
+        const entry: ScanEntry = { bssid: id.bssid, ssid: tx.ssid!, ssidHex: this.hexOf(tx.ssid!), net: tx.net, security: id.security, pmf: tx.pmf ?? 'none', channel: tx.channel ?? 36, band: tx.band ?? '5', rssiDbm: meas };
+        if (dup >= 0) scan[dup] = entry; else scan.push(entry);
       }
     }
+    for (const e of this.liveScan()) scan.push(e);
     const byBssid = new Map(scan.map((e) => [e.bssid, e] as const));
 
     // Wi-Fi paths
@@ -383,7 +451,8 @@ class SimImpl implements Sim {
       owd += v('internetOwdMs');
       paths.set(`wifi:${net}`, {
         id: `wifi:${net}`, kind: 'wifi', label: NET_LABEL[net] ?? net, up: rssi > -92, owdMs: owd, jitterMs: jitter, loss: Math.min(1, loss), hops,
-        rssiDbm: rssi, snrDb: snr, ipEpoch, uplink, attacker: !!tx.attacker, captivePortal: !!tx.captivePortal, security: tx.security,
+        rssiDbm: rssi, snrDb: snr, ipEpoch, uplink, attacker: !!tx.attacker, captivePortal: !!tx.captivePortal, security: tx.attacker ? this.twinIdent(tx).security : tx.security,
+        udpBlocked: net === 'cafe-guest' && this.lab.cafeBlocksUdp,
       });
     }
 
@@ -471,11 +540,14 @@ class SimImpl implements Sim {
         candidate: inf?.candidate ?? undefined, candidateState: inf?.candidateState, trust, pathRtts,
         leoPattern: inf?.pattern ? { ...inf.pattern, nextSpikeT: inf.leo.nextSpike(this.t), protecting: inf.redundancy } : undefined,
         satPatient: inf?.satPatience(ctx),
+        anchorLost: inf?.anchorLost ?? false,
+        flood: inf?.flood ?? false,
       },
       packets: this.packets,
       truth: {
         attackerPos: this.attacker.on ? [txById('twin').pos[0], txById('twin').pos[1]] : undefined,
-        attackerOn: this.attacker.on, attackerMode: this.attacker.mode,
+        attackerOn: this.attacker.on, attackerMode: this.attacker.mode, attackVariant: this.lab.attackVariant,
+        attackerBssid: this.attacker.on ? this.twinIdent(txById('twin')).bssid : undefined,
         uplink: this.sat.uplink, leoOutage: this.lab.leoOutage, routerFailoverAt: this.sat.failoverAt ?? undefined,
         leoBoundaryPhase: this.sat.boundaryPhase(this.t), leoSpikeActive: !!leoW, leoSatIndex: this.sat.satIndex,
       },
@@ -505,6 +577,14 @@ class SimImpl implements Sim {
         switches: a.switches,
       };
       if (a instanceof Infinet) {
+        r.fakeAccepted = a.fakeAccepted.size;
+        r.realUnreachable = a.realUnreachable.size;
+        const vm: PolicyResult['verdictMs'] = {};
+        for (const lt of ['wifi', '5g', 'sat'] as LinkType[]) {
+          const xs = a.verdictLog.filter((l) => l.linkType === lt && l.tier !== 'unreachable').map((l) => l.ms);
+          if (xs.length) vm[lt] = { mean: xs.reduce((p, q) => p + q, 0) / xs.length, worst: Math.max(...xs), n: xs.length };
+        }
+        r.verdictMs = vm;
         const logs = (a.predLog as Array<{ switchT: number; predictedCrossT?: number; truthCrossT?: number }>).filter((l) => l.truthCrossT !== undefined);
         if (logs.length) {
           r.predLeadS = logs.reduce((s, l) => s + (l.truthCrossT! - l.switchT), 0) / logs.length;

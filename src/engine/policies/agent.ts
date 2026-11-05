@@ -7,7 +7,7 @@
  */
 import { v } from '../params';
 import { Rng, crn, hashString } from '../rng';
-import type { LabState, LaneState, PacketVis, PolicyId, SimEvent, Vec2 } from '../types';
+import type { LabState, LaneState, LinkType, PacketVis, PolicyId, SimEvent, Vec2 } from '../types';
 import type { Observations } from '../observe/observe';
 import { rttOf, samplePacket, type PathTruth } from '../links/paths';
 import type { MapSet } from '../maps/rfmaps';
@@ -40,7 +40,7 @@ export interface WifiState {
   portal: boolean;
   joinedAt: number;
   joins: number;
-  handshake: 'pass' | 'fail' | 'timeout' | 'portal' | null;
+  handshake: 'pass' | 'authfail' | 'timeout' | 'portal' | null;
 }
 
 export const NET_LABEL: Record<string, string> = {
@@ -56,6 +56,18 @@ export const netOf = (pathId: string) => pathId.split(':')[1];
 export const isWifiPath = (pathId: string | null) => !!pathId && pathId.startsWith('wifi:');
 
 const SAVED_SSIDS = new Set(['Office-Corp', 'Cafe_Guest', 'Site-Net']);
+
+/** the kind of link a path is, as the phone knows it (Site-Net's satellite backhaul is in the enrolled profile) */
+export function netOfPathKind(p: PathTruth | undefined): LinkType {
+  if (!p) return 'wifi';
+  if (p.kind === 'cell') return '5g';
+  return p.id === 'wifi:site-net' ? 'sat' : 'wifi';
+}
+/** how long a probe waits for an answer: never below RFC 6298's 1 s, and 3 × the link's normal round trip */
+export function probeTimeoutS(kind: LinkType): number {
+  const typ = kind === 'sat' ? v('typicalRttSatMs') : kind === '5g' ? v('typicalRtt5gMs') : v('typicalRttWifiMs');
+  return Math.max(v('probeTimeoutMinMs'), v('probeTimeoutRtts') * typ) / 1000;
+}
 
 export abstract class Agent {
   readonly id: PolicyId;
@@ -127,7 +139,9 @@ export abstract class Agent {
     const assoc = e.security === 'WPA3-ENT' ? range('assoc8021xMs') : e.security === 'OPEN' || e.security === 'OWE' ? range('assocOpenMs') : range('assocPskMs');
     const [d0, d1] = v('dhcpS');
     const dhcp = Math.exp(r.uniform(Math.log(d0), Math.log(d1))); // log-uniform 0.3–3 s (median ≈0.95 s)
-    const plan: Array<[JoinPhase, number]> = [['scan', 0.1], ['assoc', assoc], ['dhcp', dhcp], ['portal', v('portalCheckS')]];
+    // the OS captive-portal check; Infinet runs its own portal canary in parallel with the probe instead (spec §4)
+    const plan: Array<[JoinPhase, number]> = [['scan', 0.1], ['assoc', assoc], ['dhcp', dhcp]];
+    if (this.osPortalCheck) plan.push(['portal', v('portalCheckS')]);
     if (this.tunnel) plan.push(['handshake', -1]);
     this.wifi = { net, bssid, phase: 'scan', phaseEnd: ctx.t + 0.1, plan: plan.slice(1), purpose, validated: false, portal: false, joinedAt: ctx.t, joins: this.wifi.joins + 1, handshake: null };
     this.beaconMiss = 0;
@@ -141,6 +155,11 @@ export abstract class Agent {
     this.tunnelOn.delete(pathId);
     this.onDisassociated(ctx, pathId, why);
   }
+
+  /** the OS's own captive-portal check after DHCP (Infinet replaces it with a canary that runs with the probe) */
+  protected osPortalCheck = true;
+  /** round trips the tunnel check takes once a path answers (Infinet: probe + canaries in parallel) */
+  protected checkRtts(_purpose: 'use' | 'check') { return 1; }
 
   protected onDisassociated(_ctx: Ctx, _pathId: string, _why: string) {}
   protected onJoinDone(_ctx: Ctx) {}
@@ -168,17 +187,24 @@ export abstract class Agent {
       w.phase = next[0];
       let dur = next[1];
       if (next[0] === 'handshake') {
-        dur = path && path.up && path.loss < 0.9 && !w.portal ? (rttOf(path, true) + v('handshakeExtraMs')) / 1000 : 1.0;
+        const answers = path && path.up && path.loss < 0.9 && !w.portal && !path.udpBlocked && !ctx.lab.anchorDown;
+        const need = path ? (this.checkRtts(w.purpose) * rttOf(path, true) + v('handshakeExtraMs')) / 1000 : Infinity;
+        const limit = probeTimeoutS(netOfPathKind(path));
+        // a link slower than its own patience still counts as no answer (spec §2: timeouts scale with each link's delay)
+        dur = answers ? Math.min(need, limit) : limit;
       }
       w.phaseEnd = ctx.t + dur;
     }
   }
 
-  /** The anchor handshake through a path: pinned key, so a tampering network can't fake it. */
-  handshakeOutcome(ctx: Ctx, path: PathTruth | undefined): 'pass' | 'fail' | 'timeout' | 'portal' {
+  /** The anchor handshake through a path: pinned key, so a tampering network can't fake it. WireGuard drops
+   *  packets that fail authentication silently; the probe client counts them ('authfail'). */
+  handshakeOutcome(ctx: Ctx, path: PathTruth | undefined): 'pass' | 'authfail' | 'timeout' | 'portal' {
     if (!path || !path.up || path.loss >= 0.9) return 'timeout';
     if (path.captivePortal) return 'portal';
-    if (path.attacker && ctx.lab.attackerMode === 'intercept') return 'fail';
+    if (path.udpBlocked || (this.tunnel && ctx.lab.anchorDown)) return 'timeout';
+    if (path.attacker && ctx.lab.attackerMode === 'intercept') return 'authfail';
+    if (path.kind === 'wifi' && rttOf(path, true) > probeTimeoutS(netOfPathKind(path)) * 1000) return 'timeout';
     return 'pass';
   }
 
@@ -213,6 +239,7 @@ export abstract class Agent {
       if (!this.tunnel && !this.wifi.validated) return false;
     }
     if (this.tunnel) {
+      if (ctx.lab.anchorDown) return false; // every tunnel ends at the anchor
       const tun = this.tunnelOn.get(pathId);
       if (!tun || tun.epoch !== p.ipEpoch || ctx.t < tun.readyAt) return false;
     }
@@ -245,6 +272,7 @@ export abstract class Agent {
     const cur = this.tunnelOn.get(pathId);
     if (cur && cur.epoch === p.ipEpoch) return;
     if (!p.up || p.loss >= 0.9) return; // retried every tick until the path answers
+    if (ctx.lab.anchorDown || p.udpBlocked) return; // nobody answers
     if (p.attacker && ctx.lab.attackerMode === 'intercept') return; // handshake can never complete
     this.tunnelOn.set(pathId, { epoch: p.ipEpoch, readyAt: ctx.t + (rttOf(p, true) + v('handshakeExtraMs')) / 1000 });
   }
@@ -273,6 +301,8 @@ export abstract class Agent {
         this.sessionReadyAt = ctx.t + this.reconnectDelayS(ctx) + (v('reconnectRtts') * rttOf(p, false)) / 1000;
       }
     } else {
+      // anchor down: every tunnel is gone and is handshaken again once the anchor answers
+      if (ctx.lab.anchorDown) { this.tunnelOn.clear(); return; }
       this.ensureTunnel(ctx, this.route);
       if (this.dup) for (const d of this.dup.paths) this.ensureTunnel(ctx, d);
     }

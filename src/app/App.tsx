@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
-import { driver, useUi, type Playable } from './driver';
+import { CREDITS_APP, driver, NOTES_APP, useUi, type Playable } from './driver';
 import { World } from './scene/World';
 import { LabelLayer } from './scene/labels';
 import { Hud, useStageScale } from './ui/Hud';
 import { APPS, LAB, Phone } from './phone/Phone';
 import { Loader } from './ui/Loader';
 
-const TRAVEL: Record<string, Playable> = { Digit1: 'building-exit', Digit2: 'cafe-twin', Digit4: 'desert-sat' };
+const TRAVEL: Record<string, Playable> = { Digit1: 'building-exit', Digit2: 'cafe-twin', Digit3: 'desert-sat', Digit4: 'desert-sat' };
 
 function onKeyDown(e: KeyboardEvent) {
   if (e.repeat && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) { if (/^Key[WASD]$/.test(e.code)) return; }
@@ -30,7 +30,9 @@ function onKeyDown(e: KeyboardEvent) {
   if (c === 'F10') { e.preventDefault(); set({ perf: !ui.perf }); }
 
   // phone
+  if (c === 'KeyM' && !e.repeat) driver.skipToMoment();
   const arrows: Record<string, number> = { ArrowUp: -3, ArrowDown: 3, ArrowLeft: -1, ArrowRight: 1 };
+  if (c in arrows || c === 'Enter' || ((c === 'Backspace' || c === 'Escape') && ui.phoneUp)) driver.touchPhone();
   if (c in arrows) {
     e.preventDefault();
     if (!ui.phoneUp) { if (c === 'ArrowUp') set({ phoneUp: true, unread: 0 }); return; }
@@ -46,7 +48,7 @@ function onKeyDown(e: KeyboardEvent) {
   }
   if ((c === 'Backspace' || c === 'Escape') && ui.phoneUp) {
     e.preventDefault();
-    if (ui.app === 6 || ui.app === 7) set({ app: 5 });
+    if (ui.app === NOTES_APP || ui.app === CREDITS_APP) set({ app: 5 });
     else if (ui.app !== null) set({ app: null });
     else set({ phoneUp: false });
   }

@@ -1,10 +1,10 @@
 /**
  * The network layer (plan §7). Invisible in Reality view except what a person could see (AP LEDs are part of
  * the models) and a faint glow at the predicted edge. In Network Vision (N) it lights up:
- *  - ground heatmap at 1 m: Wi-Fi blue, cellular green; contours at −67 dBm (solid), −75 dBm (dashed),
- *    5G −100 dBm; red hatching where the blocked copy is the strongest signal. Belief map by default,
- *    truth or error with Shift+N (P6).
- *  - cell sector wedges, beacon rings, backhaul to the Internet node, anchor pillar
+ *  - ground heatmap at 1 m, drawn as a grid of dots that grow with the signal (Wi-Fi blue, cellular green) over a
+ *    faint wash; thin contours at −67 dBm (solid), −75 dBm (dashed), 5G −100 dBm; red hatching where the blocked
+ *    copy is the strongest signal. Belief map by default, truth or error with Shift+N (P6).
+ *  - cell sector wedges, beacon rings in the colour of Infinet's verdict, backhaul to the Internet, anchor pillar
  *  - Infinet's tunnel as a cyan tube with moving cells; packets along every hop (sealed / plain / lost / late)
  *  - the prediction: amber forecast arrow, edge ring and countdown
  *  - desert: LEO pass track, GEO slot, bent pipe to the gateway and the anchor (distances compressed, labelled)
@@ -92,12 +92,24 @@ const heatFrag = /* glsl */`
     } else {
       float sw = smoothstep(-88.0, -48.0, wifi);
       float sc = smoothstep(-118.0, -82.0, cell) * (1.0 - smoothstep(-80.0, -70.0, wifi));
-      col = mix(cCell, cWifi, step(sc, sw)); a = max(sw * 0.62, sc * 0.30);
-      col *= 0.55 + 0.75 * max(sw, sc);
+      bool isWifi = sw >= sc;
+      float s = max(sw, sc);
+      vec3 base = isWifi ? cWifi : cCell;
+      // a faint wash for continuity …
+      col = base * (0.45 + 0.55 * s); a = isWifi ? sw * 0.16 : sc * 0.07;
+      // … and a 1 m grid of dots whose size is the signal: read strength at a glance, see the street through it
+      vec2 g = fract(vW.xz) - 0.5;
+      float fw = fwidth(vW.x) + fwidth(vW.z);
+      float r = mix(0.025, 0.115, s);
+      float dotA = (1.0 - smoothstep(r - fw * 0.6, r + fw * 0.6, length(g))) * smoothstep(0.03, 0.18, s);
+      float near = 1.0 - smoothstep(0.10, 0.45, fw); // far away the dots would shimmer: let the wash carry it
+      dotA *= near;
+      col = mix(col, base * (0.75 + 0.55 * s), dotA); a = max(a, dotA * (isWifi ? 0.62 : 0.36));
+      a = max(a, (1.0 - near) * (isWifi ? sw * 0.30 : sc * 0.12));
     }
     // contours: design thresholds (plan P2)
     float dash = step(0.5, fract((vW.x - vW.z) * 0.35));
-    float c1 = contour(wifi, tVoice, 1.4), c2 = contour(wifi, tData, 1.1) * dash, c3 = contour(cell, tCell, 1.2);
+    float c1 = contour(wifi, tVoice, 1.0), c2 = contour(wifi, tData, 0.85) * dash, c3 = contour(cell, tCell, 0.9);
     col = mix(col, cLine, max(c1, c2)); a = max(a, max(c1, c2) * 0.95);
     col = mix(col, cCell * 1.6, c3 * (1.0 - max(c1, c2))); a = max(a, c3 * 0.9);
     // the blocked copy: red hatching where it is the loudest signal
@@ -160,7 +172,8 @@ function Heatmap() {
     const j = st.job;
     if (!j) return;
     const which = view === 'truth' ? 'truth' : 'belief';
-    const twinBlocked = s.infinet.trust[TX.find((t) => t.attacker)?.bssid ?? '']?.tier === 'blocked';
+    const twinTv = s.infinet.trust[s.truth.attackerBssid ?? ''];
+    const twinBlocked = twinTv?.net === 'twin' && twinTv.tier === 'blocked';
     const H = THREE.DataUtils.toHalfFloat;
     // 32 rows a frame: a full refresh takes 4 frames, no hitch
     for (let n = 0; n < 32 && j.row < HN; n++, j.row++) {
@@ -178,8 +191,8 @@ function Heatmap() {
       }
     }
     if (j.row >= HN) {
-      // 5 × 5 box blur on the dBm channels: contours read as lines, not speckle from shadow fading
-      blur(j.buf, HN, 2);
+      // 7 × 7 box blur on the dBm channels: contours read as lines, not speckle from shadow fading
+      blur(j.buf, HN, 3);
       st.data.set(j.buf);
       st.tex.needsUpdate = true;
       const y = s.zone === 'desert' ? 0.22 : 0.14;
@@ -239,7 +252,15 @@ function Beacons({ s }: { s: SimSnapshot }) {
       if (!m || !mats[i]) return;
       const u = (t / 1.6 + mats[i].userData.ph) % 1;
       m.scale.setScalar(0.3 + u * 14);
-      mats[i].opacity = (1 - u) * 0.55 * visionK.v;
+      // the ring is the colour of Infinet's verdict on this AP (its own memory, P5): blocked rings read red at once
+      const tx = aps[i];
+      const snap = driver.snap;
+      const bssid = tx.attacker ? snap.truth.attackerBssid : tx.bssid;
+      const tv = bssid ? snap.infinet.trust[bssid] : undefined;
+      const tier = tv && (!tx.attacker || tv.net === 'twin') ? tv.tier : undefined;
+      const hex = tier === 'trusted' ? tech.ok : tier === 'tunnel' ? tech.tunnel : tier === 'blocked' ? tech.threat : tier === 'checking' ? tech.check : tier === 'unreachable' ? '#8A93A6' : tech.wifi;
+      if (mats[i].userData.hex !== hex) { mats[i].color.copy(hdr(hex, 1.8)); mats[i].userData.hex = hex; }
+      mats[i].opacity = (1 - u) * (tier === 'blocked' ? 0.8 : 0.5) * visionK.v;
     });
   });
   return (

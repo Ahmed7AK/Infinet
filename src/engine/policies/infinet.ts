@@ -1,20 +1,30 @@
 /**
- * Infinet = coverage-map prediction (Feature 1) + trust gate (Feature 2) + tunnel
+ * Infinet = coverage-map prediction (Feature 1) + trust gate (Feature 2) + always-on tunnel
  *         + deadline-aware selective duplication + RTT-aware liveness + LEO pattern learner.
  * Reads only Observations + its own belief map + its own probe results (never truth; plan P5/P6).
+ * Security spec v1.0: verdicts route, encryption never stops. Every frame goes through the tunnel on every
+ * network; Trusted is the primary path, Tunnel only a backup, Unreachable and Blocked never. Duplication (D3)
+ * is one tunnel per path, each with its own handshake, and the receiver drops copies by sequence number.
+ * Anchor down: fail closed (D2). Nothing goes outside the tunnel; the phone says so and holds messages.
  */
 import { v } from '../params';
-import type { Flag, PolicyId, TrustView, Vec2 } from '../types';
-import { Agent, isWifiPath, netOf, NET_LABEL, type Ctx } from './agent';
+import type { Flag, HandshakeResult, LinkType, PolicyId, ScanEntry, Tier, TrustView, Vec2 } from '../types';
+import { Agent, isWifiPath, netOf, NET_LABEL, probeTimeoutS, type Ctx } from './agent';
+
+const netOfKind = (pathId: string): LinkType => (pathId.startsWith('cell:') ? '5g' : pathId === 'wifi:site-net' ? 'sat' : 'wifi');
 import { Predictor, type TtlResult } from '../predict/predict';
 import { LeoLearner } from '../predict/leoPattern';
-import { decideTier, ENROLLED, isEnrolled, redFlags, verdictText } from '../trust/trust';
+import { decideTier, isEnrolled, redFlags, screen, SEC_LABEL, SEC_RANK, verdictText } from '../trust/trust';
 import { rttOf, sampleProbeRtt } from '../links/paths';
 import { LAYOUT } from '../world/layout';
 
 interface Rto { srtt?: number; rttvar?: number; rto: number; timeouts: number; nextAt: number; pending?: { due: number; rtt: number }; slot: number; dead: boolean; samples: number[] }
 
 export interface InfinetOpts { predict: boolean; trust: boolean }
+
+const VERDICT_EVENT: Partial<Record<Tier, 'trust.blocked' | 'trust.tunnel' | 'trust.trusted' | 'trust.unreachable'>> = {
+  blocked: 'trust.blocked', tunnel: 'trust.tunnel', trusted: 'trust.trusted', unreachable: 'trust.unreachable',
+};
 
 export class Infinet extends Agent {
   readonly opts: InfinetOpts;
@@ -25,6 +35,7 @@ export class Infinet extends Agent {
   candidate: string | null = null;
   candidateState: 'idle' | 'checking' | 'ready' = 'idle';
   private candReadyAt = 0;
+  private candStartT = 0;
   private headsUpFor: string | null = null;
   private rto = new Map<string, Rto>();
   checkTarget: string | null = null;
@@ -33,44 +44,104 @@ export class Infinet extends Agent {
   /** prediction bookkeeping for the batch metric (lead time and error vs truth) */
   predLog: Array<{ switchT: number; predictedCrossT?: number; net: string }> = [];
   pattern?: { periodS: number; confidence: number };
+  /** environment: beacon-flood alert (spec §6) and the anchor (spec §5) */
+  flood = false;
+  anchorLost = false;
+  private liveProbeAt = new Map<string, number>();
+  /** live hotspots this phone has checked: learned BSSID set and security per raw name (its own memory) */
+  private learned = new Map<string, { bssids: Set<string>; security: import('../types').Security; name: string }>();
+  // spec §2 metrics (the batch harness reads these; the phone never does)
+  fakeAccepted = new Set<string>();
+  realUnreachable = new Set<string>();
+  verdictLog: Array<{ linkType: LinkType; ms: number; tier: Tier }> = [];
+  protected osPortalCheck = false;
 
   constructor(seed: number, id: PolicyId = 'infinet', opts: InfinetOpts = { predict: true, trust: true }) {
     super(id, seed, true);
     this.opts = opts;
   }
 
+  /** a check join runs the probe and the canaries in parallel: the slowest canary (TLS) takes 2 round trips */
+  protected checkRtts(purpose: 'use' | 'check') { return purpose === 'check' ? v('canaryRtts') : 1; }
+
   // ───────────── initial trust state for a scenario ─────────────
   preTrust(ctx: Ctx, keys: string[]) {
     for (const k of keys) {
       if (k.startsWith('cell:')) this.trust.set(k, this.cellTrust(ctx, k, 'trusted'));
       else for (const tx of LAYOUT.transmitters.filter((x) => x.kind === 'wifi' && x.net === k && !x.attacker)) {
-        this.trust.set(tx.bssid!, { bssid: tx.bssid!, ssid: tx.ssid!, net: tx.net, tier: 'trusted', flags: [], score: 0, handshake: 'pass', firstSeenT: ctx.t, decidedT: ctx.t,
-          reason: `${tx.ssid}, as expected. Handshake passed.`, mayCarry: 'Everything', steps: this.okSteps(tx.ssid!, ctx.t) });
+        this.trust.set(tx.bssid!, this.enrolledView(tx.bssid!, tx.ssid!, tx.net, ctx.t));
       }
     }
   }
 
-  private okSteps(_ssid: string, t: number) {
-    return [
-      { text: 'Known device for this name', ok: true, t },
-      { text: 'Security as enrolled', ok: true, t },
-      { text: 'Signal matches our map', ok: true, t },
-      { text: 'Handshake with anchor server', ok: true, t },
-    ];
+  private enrolledView(bssid: string, ssid: string, net: string, t: number): TrustView {
+    const tv: TrustView = {
+      bssid, ssid, net, tier: 'trusted', flags: [], handshake: 'pass', authFailed: 0, canaries: { tls: 'ok', dns: 'ok', portal: 'ok' },
+      linkType: net === 'site-net' ? 'sat' : 'wifi', firstSeenT: t, decidedT: t, stage: 'verdict', reason: '', mayCarry: '', steps: [],
+    };
+    tv.steps = this.stepsFor(tv, t);
+    Object.assign(tv, verdictText(tv));
+    return tv;
   }
 
   private cellTrust(ctx: Ctx, key: string, tier: 'checking' | 'trusted'): TrustView {
     const net = netOf(key);
-    return {
-      bssid: key, ssid: NET_LABEL[net] ?? net, net, tier, flags: [], score: 0, handshake: tier === 'trusted' ? 'pass' : 'pending', firstSeenT: ctx.t,
-      decidedT: tier === 'trusted' ? ctx.t : undefined,
-      reason: tier === 'trusted' ? `${NET_LABEL[net]} (SIM-authenticated). Handshake passed.` : `Checking ${NET_LABEL[net]}…`,
-      mayCarry: tier === 'trusted' ? 'Everything' : 'Nothing yet',
-      steps: [
-        { text: 'SIM-authenticated (5G AKA, mutual)', ok: true, t: ctx.t },
-        { text: 'Handshake with anchor server', ok: tier === 'trusted' ? true : null, t: ctx.t },
-      ],
+    const tv: TrustView = {
+      bssid: key, ssid: NET_LABEL[net] ?? net, net, tier, flags: [], handshake: tier === 'trusted' ? 'pass' : 'pending', authFailed: 0, linkType: '5g',
+      firstSeenT: ctx.t, decidedT: tier === 'trusted' ? ctx.t : undefined, stage: tier === 'trusted' ? 'verdict' : 'quarantine',
+      reason: '', mayCarry: '', steps: [],
     };
+    this.refresh(tv, ctx.t);
+    if (tier === 'trusted') tv.reason = `${NET_LABEL[net]} (SIM-authenticated), as expected. Handshake passed.`;
+    return tv;
+  }
+
+  /** the hologram's checklist: the passive screen, then the quarantine probe and its canaries */
+  private stepsFor(tv: TrustView, t: number): TrustView['steps'] {
+    const out: TrustView['steps'] = [];
+    const hs = tv.handshake;
+    if (tv.linkType === '5g') {
+      out.push({ text: 'SIM-authenticated (5G AKA, mutual)', ok: true, t });
+      out.push({ text: hs === 'pass' ? 'Probe handshake with the anchor: passed' : hs === 'timeout' ? 'Probe: no answer yet · retrying' : 'Probe handshake with the anchor (1 round trip)', ok: hs === 'pass' ? true : null, t });
+      return out;
+    }
+    if (!tv.flags.length) out.push({ text: 'Screen: no red flags', ok: true, t });
+    for (const f of tv.flags) out.push({ text: `${f.text} · ${f.weight}`, ok: false, t });
+    if (tv.tier === 'blocked' && (hs === undefined || hs === 'pending')) {
+      out.push({ text: 'Blocked on its red flags · nothing sent to it', ok: false, t });
+      return out;
+    }
+    const sim = tv.live ? ' (simulated)' : '';
+    const probe =
+      hs === 'pass' ? { text: `Probe handshake passed${sim}`, ok: true as boolean | null }
+      : hs === 'authfail' ? { text: `${tv.authFailed ?? 1} probe packet failed authentication`, ok: false }
+      : hs === 'timeout' ? { text: `No answer within ${probeTimeoutS(tv.linkType).toFixed(1)} s · retry later`, ok: null }
+      : hs === 'portal' ? { text: 'Sign-in page: sandboxed sign-in only', ok: null }
+      : { text: 'Probe with its own key · the call stays put', ok: null };
+    out.push({ ...probe, t });
+    const c = tv.canaries;
+    if (c && c.tls !== 'skip') out.push({ text: c.tls === 'ok' ? 'TLS canary: certificate as pinned' : c.tls === 'bad' ? 'TLS canary: certificate mismatch' : 'TLS canary', ok: c.tls === 'wait' ? null : c.tls === 'ok', t });
+    if (c && c.dns !== 'skip') out.push({ text: c.dns === 'ok' ? 'DNS canary: answers match' : c.dns === 'bad' ? 'DNS canary: answers differ' : 'DNS canary', ok: c.dns === 'wait' ? null : c.dns === 'ok', t });
+    return out;
+  }
+
+  private refresh(tv: TrustView, t: number) {
+    tv.steps = this.stepsFor(tv, t);
+    const staying = this.route ? (NET_LABEL[netOf(this.route)] ?? '5G') : '5G';
+    Object.assign(tv, verdictText(tv, staying));
+  }
+
+  /** one verdict reached: tell the phone (event), keep the spec §2 metrics */
+  private report(ctx: Ctx, tv: TrustView) {
+    const type = VERDICT_EVENT[tv.tier];
+    if (!type || tv.decidedT === undefined) return;
+    const ms = Math.max(v('radioTickS') * 1000, (tv.decidedT - tv.firstSeenT) * 1000);
+    ctx.emit({ t: ctx.t, type, bssid: tv.bssid, ssid: tv.ssid, flags: tv.flags, reason: tv.reason, handshake: tv.handshake, verdictMs: Math.round(ms) });
+    this.verdictLog.push({ linkType: tv.linkType, ms, tier: tv.tier });
+    const fake = tv.net === 'twin';
+    if (tv.tier === 'blocked' && !fake && !tv.live) this.wronglyBlocked++;
+    if (tv.tier === 'unreachable' && !fake) this.realUnreachable.add(tv.bssid);
+    if ((tv.tier === 'tunnel' || tv.tier === 'trusted') && fake) this.fakeAccepted.add(tv.bssid);
   }
 
   // ───────────── admission: the invariant (plan §9.7) ─────────────
@@ -84,10 +155,11 @@ export class Infinet extends Agent {
     void ctx;
   }
 
+  /** what may carry the tunnel: Trusted (primary) or Tunnel only (backup). Unreachable, Blocked, Checking: never. */
   isAdmissible(ctx: Ctx, pathId: string): boolean {
     if (!this.opts.trust) return true;
     const tv = this.tierOfPath(ctx, pathId);
-    return !!tv && (tv.tier === 'trusted' || tv.tier === 'pipe');
+    return !!tv && (tv.tier === 'trusted' || tv.tier === 'tunnel');
   }
 
   private usableTrusted(ctx: Ctx, pathId: string): boolean {
@@ -96,39 +168,109 @@ export class Infinet extends Agent {
     const tv = this.tierOfPath(ctx, pathId);
     if (!tv) return false;
     if (tv.tier === 'trusted') return true;
-    return tv.tier === 'pipe' && tv.handshake === 'pass';
+    return tv.tier === 'tunnel' && tv.handshake === 'pass';
   }
 
   routeChecked(ctx: Ctx): boolean {
     return !!this.route && this.isAdmissible(ctx, this.route);
   }
 
-  // ───────────── the trust gate ─────────────
+  // ───────────── the trust gate: appears → screen ─────────────
   private trustBookkeeping(ctx: Ctx) {
     if (!ctx.radioTick) return;
+    this.floodCheck(ctx);
     for (const e of ctx.obs.scan) {
-      if (e.rssiDbm < -82) continue;
+      if (e.anon) continue;                         // other people's networks: anonymous dots, never joined
+      if (e.rssiDbm < -82 && !e.live) continue;
       const tv = this.trust.get(e.bssid);
-      if (!tv && this.opts.trust && isEnrolled(e.net, e) && [...this.trust.values()].some((x) => x.net === e.net && x.tier === 'trusted')) {
+      if (tv) { this.rescreen(ctx, tv, e); continue; }
+      if (this.opts.trust && !e.live && isEnrolled(e.net, e) && [...this.trust.values()].some((x) => x.net === e.net && x.tier === 'trusted')) {
         // another access point of an enrolled network we already checked (same 802.1X/SAE domain, in our profile)
-        this.trust.set(e.bssid, { bssid: e.bssid, ssid: e.ssid, net: e.net, tier: 'trusted', flags: [], score: 0, handshake: 'pass', firstSeenT: ctx.t, decidedT: ctx.t,
-          reason: `${e.ssid}, as expected. Handshake passed.`, mayCarry: 'Everything', steps: this.okSteps(e.ssid, ctx.t) });
+        this.trust.set(e.bssid, this.enrolledView(e.bssid, e.ssid, e.net, ctx.t));
         continue;
       }
-      if (!tv) {
-        const flags: Flag[] = this.opts.trust ? redFlags(e, ctx.obs.pos, ctx.maps, ctx.obs.firstSeen, ctx.obs.scan) : [];
-        const score = flags.reduce((s, f) => s + f.score, 0);
-        const steps = flags.length
-          ? flags.map((f) => ({ text: f.text, ok: false as boolean | null, t: ctx.t }))
-          : [{ text: 'Known device for this name', ok: (LAYOUT.transmitters.some((x) => x.bssid === e.bssid && !x.attacker)) as boolean | null, t: ctx.t },
-             { text: 'Security as expected', ok: true as boolean | null, t: ctx.t },
-             { text: 'Signal matches our map', ok: true as boolean | null, t: ctx.t }];
-        steps.push({ text: 'Handshake with anchor server', ok: null, t: ctx.t });
-        const view: TrustView = { bssid: e.bssid, ssid: e.ssid, net: e.net, tier: 'checking', flags, score, handshake: 'pending', firstSeenT: ctx.t, reason: '', mayCarry: 'Nothing yet', steps };
-        Object.assign(view, verdictText(view));
-        this.trust.set(e.bssid, view);
-        ctx.emit({ t: ctx.t, type: 'trust.checking', bssid: e.bssid, ssid: e.ssid, flags, reason: view.reason });
+      const flags: Flag[] = this.opts.trust ? redFlags(e, ctx.obs.pos, e.live ? null : ctx.maps, { learned: this.learned }) : [];
+      const view: TrustView = {
+        bssid: e.bssid, ssid: e.ssid, net: e.net, tier: 'checking', flags, security: e.security, handshake: 'pending', linkType: e.net === 'site-net' ? 'sat' : 'wifi',
+        firstSeenT: ctx.t, stage: 'quarantine', reason: '', mayCarry: '', steps: [], live: e.live,
+        canaries: { tls: 'wait', dns: 'wait', portal: 'wait' },
+      };
+      this.trust.set(e.bssid, view);
+      if (screen(flags) === 'block') {
+        // two high flags, or one high and one medium: blocked before anything is sent
+        view.tier = 'blocked'; view.handshake = undefined; view.canaries = undefined; view.decidedT = ctx.t; view.stage = 'verdict';
+        this.refresh(view, ctx.t);
+        this.report(ctx, view);
+        continue;
       }
+      this.refresh(view, ctx.t);
+      ctx.emit({ t: ctx.t, type: 'trust.checking', bssid: e.bssid, ssid: e.ssid, flags, reason: view.reason });
+      if (e.live) this.liveProbeAt.set(e.bssid, ctx.t + v('liveProbeS'));
+    }
+    // live hotspots: the screen is real; the quarantine probe is simulated (the laptop never joins venue Wi-Fi)
+    for (const [b, at] of this.liveProbeAt) {
+      if (ctx.t < at) continue;
+      this.liveProbeAt.delete(b);
+      const tv = this.trust.get(b);
+      if (!tv || tv.tier !== 'checking') continue;
+      this.verdict(ctx, tv, 'pass');
+      // first sight teaches the phone this network (trust on first use): its BSSID and security become what it
+      // remembers, so a second device with the same name is "new device", and a weaker one a "downgrade". Weak
+      // crypto or a loud signal don't stop it learning; a flag about who it is (a copy, a look-alike) does.
+      const e = ctx.obs.byBssid.get(b);
+      const tier = tv.tier as Tier;
+      const identity = tv.flags.some((f) => f.id === 'new-device' || f.id === 'downgrade' || f.id === 'look-alike' || f.id === 'dns');
+      if (e && !identity && (tier === 'tunnel' || tier === 'trusted')) {
+        const l = this.learned.get(e.ssidHex) ?? { bssids: new Set<string>(), security: e.security, name: tv.ssid };
+        l.bssids.add(b);
+        this.learned.set(e.ssidHex, l);
+      }
+    }
+  }
+
+  /** a known BSSID that comes back weaker (the downgrade variant: same BSSID, no password) is checked again */
+  private rescreen(ctx: Ctx, tv: TrustView, e: ScanEntry) {
+    if (tv.linkType === '5g' || !this.opts.trust) return;
+    if (tv.net !== e.net) {
+      tv.net = e.net;                            // the radio now hears another transmitter under this BSSID
+      // a perfect copy (same name, security and BSSID) inherits the real network's verdict: counted, never hidden
+      if (tv.net === 'twin' && (tv.tier === 'tunnel' || tv.tier === 'trusted')) this.fakeAccepted.add(tv.bssid);
+    }
+    const was = tv.security;
+    if (!was || e.security === was) return;
+    if (SEC_RANK[e.security] >= SEC_RANK[was]) return;
+    if (tv.tier === 'blocked') return;
+    const flags = redFlags(e, ctx.obs.pos, ctx.maps);
+    if (!flags.some((f) => f.id === 'downgrade')) {
+      flags.push({ id: 'downgrade', weight: 'high', text: e.security === 'OPEN' ? `Security downgrade: no password (was ${SEC_LABEL[was]})` : `Security downgrade: ${SEC_LABEL[e.security]} (was ${SEC_LABEL[was]})` });
+    }
+    Object.assign(tv, {
+      tier: 'checking', flags, security: e.security, handshake: 'pending', authFailed: 0, canaries: { tls: 'wait', dns: 'wait', portal: 'wait' },
+      firstSeenT: ctx.t, decidedT: undefined, retryAt: undefined, stage: 'quarantine',
+    } satisfies Partial<TrustView>);
+    if (this.wifi.bssid === tv.bssid) this.disassociate(ctx, 'security changed');
+    if (screen(flags) === 'block') {
+      tv.tier = 'blocked'; tv.handshake = undefined; tv.canaries = undefined; tv.decidedT = ctx.t; tv.stage = 'verdict';
+      this.refresh(tv, ctx.t);
+      this.report(ctx, tv);
+      return;
+    }
+    this.refresh(tv, ctx.t);
+    ctx.emit({ t: ctx.t, type: 'trust.checking', bssid: tv.bssid, ssid: tv.ssid, flags, reason: tv.reason });
+  }
+
+  /** spec §6: many new names per scan raise an environment alert that freezes trust upgrades */
+  private floodCheck(ctx: Ctx) {
+    const win = v('floodWindowS');
+    const names = new Set<string>();
+    for (const e of ctx.obs.scan) {
+      const f = ctx.obs.firstSeen.get(e.bssid);
+      if (f !== undefined && f > 0.5 && ctx.t - f <= win) names.add(e.ssidHex || e.bssid);
+    }
+    const on = names.size >= v('floodNewNames');
+    if (on !== this.flood) {
+      this.flood = on;
+      ctx.emit({ t: ctx.t, type: on ? 'flood.on' : 'flood.off', newNames: names.size });
     }
   }
 
@@ -137,10 +279,11 @@ export class Infinet extends Agent {
     const carrying = isWifiPath(this.route) || (this.dup?.paths.some(isWifiPath) ?? false);
     if (carrying) return;
     if (this.wifi.net && this.wifi.phase !== 'up') return; // a join is in progress
-    const pending = [...this.trust.values()].filter((tv) => !tv.bssid.startsWith('cell:') && tv.tier === 'checking' && ctx.obs.byBssid.has(tv.bssid))
+    const due = (tv: TrustView) => (tv.tier === 'checking' || tv.tier === 'unreachable') && (tv.retryAt ?? -1) <= ctx.t;
+    const pending = [...this.trust.values()].filter((tv) => !tv.bssid.startsWith('cell:') && !tv.live && due(tv) && ctx.obs.byBssid.has(tv.bssid))
       .sort((a, b) => a.firstSeenT - b.firstSeenT);
     if (!pending.length) {
-      // nothing to check: if associated to something unusable, keep it (no traffic) unless blocked
+      // nothing to check: if associated to something unusable, leave it
       if (this.wifi.bssid) {
         const tv = this.trust.get(this.wifi.bssid);
         if (tv?.tier === 'blocked') this.disassociate(ctx, 'blocked', 30);
@@ -155,10 +298,16 @@ export class Infinet extends Agent {
     const tgt = pending[0];
     if (this.wifi.bssid === tgt.bssid) return;
     if (this.wifi.net) this.disassociate(ctx, 'probe another network');
+    if (tgt.tier === 'unreachable') {
+      // the retry: back into quarantine
+      Object.assign(tgt, { tier: 'checking', handshake: 'pending', retryAt: undefined, stage: 'quarantine', canaries: { tls: 'wait', dns: 'wait', portal: 'wait' } } satisfies Partial<TrustView>);
+      this.refresh(tgt, ctx.t);
+    }
     this.checkTarget = tgt.bssid;
     this.joinWifi(ctx, tgt.net, tgt.bssid, 'check');
   }
 
+  // ───────────── quarantine → verdict ─────────────
   protected onJoinDone(ctx: Ctx) {
     const b = this.wifi.bssid;
     if (!b) return;
@@ -166,25 +315,30 @@ export class Infinet extends Agent {
     const e = ctx.obs.byBssid.get(b);
     if (!tv || !e) return;
     if (tv.tier !== 'checking' && tv.decidedT !== undefined && this.wifi.purpose === 'use') return;
-    const hs = this.wifi.handshake ?? 'timeout';
-    const enrolled = isEnrolled(e.net, e) && !!ENROLLED[e.net];
-    const res = this.opts.trust ? decideTier({ enrolled, open: e.security === 'OPEN', score: tv.score, handshake: hs, threshold: ctx.lab.blockThreshold })
-      : { tier: hs === 'pass' ? 'trusted' as const : 'blocked' as const, usable: hs === 'pass' };
+    this.verdict(ctx, tv, this.wifi.handshake ?? 'timeout', e);
+  }
+
+  private verdict(ctx: Ctx, tv: TrustView, hs: HandshakeResult, e?: ScanEntry) {
+    // the probe and canaries ran in parallel: a tampering path fails authentication and swaps the TLS certificate
+    const tampering = hs === 'authfail';
     tv.handshake = hs;
-    tv.tier = res.tier;
-    tv.decidedT = ctx.t;
-    const last = tv.steps[tv.steps.length - 1];
-    last.ok = hs === 'pass' ? true : hs === 'portal' ? null : false;
-    last.text = hs === 'pass' ? 'Handshake with anchor server: passed' : hs === 'fail' ? 'Handshake with anchor server: failed' : hs === 'portal' ? 'Handshake: blocked by a login page' : 'Handshake: timed out';
-    last.t = ctx.t;
-    Object.assign(tv, verdictText(tv));
-    const type = res.tier === 'blocked' ? 'trust.blocked' : res.tier === 'trusted' ? 'trust.trusted' : 'trust.pipe';
-    ctx.emit({ t: ctx.t, type, bssid: b, ssid: tv.ssid, flags: tv.flags, reason: tv.reason, handshake: hs });
-    if (res.tier === 'blocked') {
-      if (!LAYOUT.transmitters.find((x) => x.bssid === b)?.attacker) this.wronglyBlocked++;
-      this.disassociate(ctx, 'blocked', 60);
+    tv.authFailed = tampering ? v('authFailPackets') : 0;
+    tv.canaries = hs === 'pass' || tampering ? { tls: tampering ? 'bad' : 'ok', dns: 'ok', portal: 'ok' } : { tls: 'skip', dns: 'skip', portal: hs === 'portal' ? 'bad' : 'skip' };
+    const known = !!e && isEnrolled(e.net, e);
+    const tier: Tier = this.opts.trust
+      ? decideTier({ known, flags: tv.flags, handshake: hs, authFailed: tv.authFailed, tls: tv.canaries.tls, flood: this.flood })
+      : hs === 'pass' ? 'trusted' : hs === 'timeout' ? 'unreachable' : hs === 'portal' ? 'checking' : 'blocked';
+    tv.tier = tier;
+    tv.stage = tier === 'checking' ? 'quarantine' : 'verdict';
+    tv.decidedT = tier === 'checking' ? undefined : ctx.t;
+    tv.retryAt = tier === 'unreachable' || tier === 'checking' ? ctx.t + v('unreachableRetryS') : undefined;
+    this.refresh(tv, ctx.t);
+    this.report(ctx, tv);
+    if (this.wifi.bssid === tv.bssid) {
+      if (tier === 'blocked') this.disassociate(ctx, 'blocked', 60);
+      else if (tier === 'unreachable' || tier === 'checking') this.disassociate(ctx, tier, 0);
     }
-    this.checkTarget = null;
+    if (this.checkTarget === tv.bssid) this.checkTarget = null;
   }
 
   // ───────────── RTT-aware liveness (RFC 6298-style per path) ─────────────
@@ -238,6 +392,7 @@ export class Infinet extends Agent {
       else { this.redundancy = false; this.rx.stretchMs = 0; }
     }
     if (this.candidate) this.liveness(ctx, this.candidate);
+    this.anchorWatch(ctx);
 
     if (isWifiPath(this.route)) this.onWifi(ctx);
     else this.onCell(ctx);
@@ -247,6 +402,34 @@ export class Infinet extends Agent {
     this.checking = this.candidateState === 'checking' || (!!this.wifi.net && this.wifi.phase !== 'up' && this.wifi.purpose === 'check');
   }
 
+  /** Fail closed (spec §5, D2). The phone's own inference: the tunnel is silent on a link whose radio looks
+   *  healthy, while the network itself still answers the DNS canary (outside the tunnel). So the anchor, not the
+   *  radio or the uplink, is down. A satellite failover fails the canary too, so it never reads as "anchor down".
+   *  Nothing is sent outside the tunnel meanwhile; the phone says so and holds messages. */
+  private anchorWatch(ctx: Ctx) {
+    const r = this.route ? this.rto.get(this.route) : undefined;
+    const p = this.route ? ctx.paths.get(this.route) : undefined;
+    let radioOk = false;
+    if (this.route && isWifiPath(this.route)) radioOk = this.measuredWifiRssi(ctx) > v('wifiDataDbm');
+    else if (this.route) { const c = ctx.obs.cell.get(netOf(this.route)); radioOk = !!c && c.rsrpDbm > v('nrUsableRsrpDbm') && c.sinrDb > v('nrUsableSinrDb'); }
+    const networkAnswers = !!p && p.up && p.loss < 0.9 && p.uplink !== 'none' && !p.udpBlocked;
+    const silent = !!r && radioOk && networkAnswers && (r.dead || !this.pathUsable(ctx, this.route!)) && r.timeouts > 0;
+    let lost = this.anchorLost;
+    if (!silent) { this.anchorProbe = null; lost = false; }
+    else if (!this.anchorProbe) {
+      // a fresh handshake to the anchor through the answering network: does the anchor itself reply?
+      this.anchorProbe = { due: ctx.t + probeTimeoutS(netOfKind(this.route!)), ok: !ctx.lab.anchorDown };
+    } else if (ctx.t >= this.anchorProbe.due) {
+      lost = !this.anchorProbe.ok;
+      this.anchorProbe = null;
+    }
+    if (lost !== this.anchorLost) {
+      this.anchorLost = lost;
+      ctx.emit({ t: ctx.t, type: lost ? 'anchor.lost' : 'anchor.back' });
+    }
+  }
+  private anchorProbe: { due: number; ok: boolean } | null = null;
+
   private bestCell(ctx: Ctx): string | null {
     const cells = [...ctx.obs.cell.values()].filter((c) => c.attached && c.rsrpDbm > v('nrUsableRsrpDbm') && c.sinrDb > v('nrUsableSinrDb')).sort((a, b) => b.rsrpDbm - a.rsrpDbm);
     return cells.length ? `cell:${cells[0].net}` : null;
@@ -254,9 +437,11 @@ export class Infinet extends Agent {
 
   private startCheck(ctx: Ctx, pathId: string) {
     if (this.candidate === pathId && this.candidateState !== 'idle') return;
+    const known = this.trust.get(pathId);
+    if (known?.tier === 'unreachable' && ctx.t < (known.retryAt ?? 0)) return; // no answer last time: wait for the retry
     this.candidate = pathId;
     const p = ctx.paths.get(pathId);
-    const tv = this.trust.get(pathId) ?? this.cellTrust(ctx, pathId, 'checking');
+    const tv = known ?? this.cellTrust(ctx, pathId, 'checking');
     this.trust.set(pathId, tv);
     const already = this.tunnelOn.get(pathId);
     if (already && p && already.epoch === p.ipEpoch && ctx.t >= already.readyAt && tv.tier === 'trusted') {
@@ -266,8 +451,14 @@ export class Infinet extends Agent {
     this.candidateState = 'checking';
     tv.tier = 'checking';
     tv.handshake = 'pending';
-    tv.steps[tv.steps.length - 1] = { text: 'Handshake with anchor server', ok: null, t: ctx.t };
-    this.candReadyAt = ctx.t + (p ? (rttOf(p, true) + v('handshakeExtraMs')) / 1000 : 1);
+    tv.stage = 'quarantine';
+    tv.firstSeenT = ctx.t;
+    tv.decidedT = undefined;
+    this.refresh(tv, ctx.t);
+    this.candStartT = ctx.t;
+    // 1 round trip (Noise_IKpsk2-style); a path that doesn't answer is given up on after its own patience
+    const answers = !!p && p.up && p.loss < 0.9 && !ctx.lab.anchorDown;
+    this.candReadyAt = ctx.t + (answers ? (rttOf(p!, true) + v('handshakeExtraMs')) / 1000 : probeTimeoutS('5g'));
     ctx.emit({ t: ctx.t, type: 'check.start', link: pathId, label: NET_LABEL[netOf(pathId)] ?? pathId });
   }
 
@@ -275,19 +466,25 @@ export class Infinet extends Agent {
     if (!this.candidate || this.candidateState !== 'checking' || ctx.t < this.candReadyAt) return;
     const p = ctx.paths.get(this.candidate);
     const tv = this.trust.get(this.candidate)!;
-    if (p && p.up && p.loss < 0.9) {
+    tv.decidedT = ctx.t;
+    tv.stage = 'verdict';
+    if (p && p.up && p.loss < 0.9 && !ctx.lab.anchorDown) {
       this.tunnelOn.set(this.candidate, { epoch: p.ipEpoch, readyAt: ctx.t });
       this.candidateState = 'ready';
       tv.tier = 'trusted';
       tv.handshake = 'pass';
-      tv.decidedT = ctx.t;
-      tv.steps[tv.steps.length - 1] = { text: 'Handshake with anchor server: passed', ok: true, t: ctx.t };
-      Object.assign(tv, verdictText(tv));
+      this.refresh(tv, ctx.t);
+      tv.reason = `${NET_LABEL[netOf(this.candidate)]} (SIM-authenticated), as expected. Handshake passed.`;
+      this.verdictLog.push({ linkType: '5g', ms: (ctx.t - this.candStartT) * 1000, tier: 'trusted' });
       ctx.emit({ t: ctx.t, type: 'check.pass', link: this.candidate, label: NET_LABEL[netOf(this.candidate)] ?? this.candidate });
     } else {
+      // silence is not an attack: Unreachable, tried again shortly (spec §2)
       this.candidateState = 'idle';
-      tv.tier = 'blocked';
+      tv.tier = 'unreachable';
       tv.handshake = 'timeout';
+      tv.retryAt = ctx.t + 2;
+      this.refresh(tv, ctx.t);
+      this.report(ctx, tv);
       ctx.emit({ t: ctx.t, type: 'check.fail', link: this.candidate, label: NET_LABEL[netOf(this.candidate)] ?? this.candidate });
     }
   }
@@ -307,6 +504,13 @@ export class Infinet extends Agent {
     const measured = this.measuredWifiRssi(ctx);
     const r = this.rto.get(this.route!);
     const lossRecent = this.recentLoss(ctx.t, 0.5);
+    // the radio itself is gone (a deauth, or the AP vanished): that is certain, not a forecast. Any attached
+    // 5G whose tunnel is still up beats a dead Wi-Fi, even a weak one; a fresh check would only add silence.
+    if (!this.wifi.net && ctx.t - this.switchedAt > 0.2) {
+      const warm = [...ctx.obs.cell.values()].filter((c) => c.attached).sort((a, b) => b.rsrpDbm - a.rsrpDbm)
+        .map((c) => `cell:${c.net}`).find((p) => this.pathUsable(ctx, p));
+      if (warm) { this.switchTo(ctx, warm, ttl); return; }
+    }
     const cand = this.bestCell(ctx);
     if (!cand) return;
     // prepare: check the next network while there is still time

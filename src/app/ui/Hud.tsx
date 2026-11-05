@@ -6,7 +6,7 @@
 import { Bell, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { SCENARIOS, type LaneSegment, type PolicyView, type SimSnapshot } from '../../engine/index';
-import { SCENE_NUM, SCENE_ORDER, useUi, type Playable } from '../driver';
+import { driver, MOMENT, SCENE_NUM, SCENE_ORDER, useUi, type Playable } from '../driver';
 import { fmtPct, fmtS, tech, THRESH } from '../tokens';
 import { Minimap } from './Minimap';
 
@@ -25,14 +25,28 @@ export function useStageScale() {
   return s;
 }
 
+const SHORT: Record<Playable, string> = { 'building-exit': 'Office exit', 'cafe-twin': 'Café', 'desert-sat': 'Desert site' };
+
 export function SceneTitle() {
   const sc = useUi((s) => s.scenario);
+  const before = useUi((s) => (s.snap?.t ?? 0) < MOMENT[s.scenario].t - 0.5);
   const def = SCENARIOS[sc];
   return (
     <div className="scene">
       <div className="k">Scene {SCENE_NUM[sc]} of 3 · {SCENE_ORDER.indexOf(sc) + 1 === 3 ? 'remote site' : 'city'}</div>
       <div className="t">{def.label}</div>
       <div className="p">{def.proves}</div>
+      {/* jump instead of walking: each scene, and straight to the moment that matters */}
+      <div className="jump interactive">
+        {SCENE_ORDER.map((p, i) => (
+          <button key={p} className={`chip ${p === sc ? 'on' : ''}`} title={p === sc ? 'Restart this scene' : `Go to scene ${SCENE_NUM[p]}`} onClick={(e) => { e.currentTarget.blur(); driver.travel(p, 'free'); }}>
+            <kbd>{i + 1}</kbd>{SHORT[p]}
+          </button>
+        ))}
+        <button className="chip skip" onClick={(e) => { e.currentTarget.blur(); driver.skipToMoment(); }}>
+          <kbd>M</kbd>{before ? 'Skip to' : 'Replay'} {MOMENT[sc].label}
+        </button>
+      </div>
     </div>
   );
 }
@@ -120,6 +134,7 @@ export function VisionTag() {
           <span><i className="dash" style={{ borderColor: '#EAF4FF' }} />{fmtThr(THRESH.wifiData)}</span>
           <span><i style={{ borderColor: tech.cell }} />5G {fmtThr(THRESH.cellEdge)}</span>
           <span><i className="fill" style={{ background: tech.tunnel }} />tunnel</span>
+          <span className="rings">rings <b style={{ color: tech.ok }}>✓</b><b style={{ color: tech.tunnel }}>◇</b><b style={{ color: tech.check }}>…</b><b style={{ color: tech.threat }}>✕</b></span>
         </span>
       )}
     </div>
@@ -138,8 +153,19 @@ export function Hints() {
         <span className="key glass"><kbd>H</kbd>help</span>
       </div>
       <span className="simtag">SIMULATED</span>
+      <LiveTag />
     </div>
   );
+}
+
+/** the live scanner's state, under SIMULATED: the panel should know which dots are real */
+function LiveTag() {
+  const scanner = useUi((s) => s.scanner);
+  const n = useUi((s) => s.liveCount);
+  const note = useUi((s) => s.scannerNote);
+  if (scanner === 'off') return null;
+  const word = scanner === 'live' ? `LIVE WI-FI SCAN · ${n} nearby` : scanner === 'replay' ? 'REPLAY · SYNTHETIC EXAMPLE' : scanner === 'connecting' ? 'LIVE SCAN · connecting' : 'LIVE SCAN · not connected';
+  return <span className="simtag live" title={note || undefined}>{word}</span>;
 }
 
 // ───────────── notifications, captions, banners, help ─────────────
@@ -188,7 +214,8 @@ export function Help() {
     ['drag', 'Look around'],
     ['N', 'Network Vision: see the networks, the tunnel and the packets'],
     ['Shift+N', "In Vision: Infinet's map · true signal · map error"],
-    ['1 · 2 · 4', 'Fast travel: office · café · desert site'],
+    ['1 · 2 · 3', 'Jump to a scene: office exit · café · desert site (or click the chips, top left)'],
+    ['M', "Skip to the scene's key moment (again to replay it)"],
     ['T', 'Tour: the three moments with captions (≈ 2 min)'],
     ['↑ · arrows · Enter · ⌫', 'Raise the Infinet phone and use it'],
     ['C', "Change the comparison phone: Today's phone · Strongest signal · Tunnel, no check"],

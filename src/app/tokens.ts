@@ -24,13 +24,16 @@ export const ui = {
   dim: '#6B7380',
 } as const;
 
-export type Tier = 'checking' | 'trusted' | 'pipe' | 'blocked' | 'unchecked';
+export type { Tier } from '../engine/types';
+import type { Tier } from '../engine/types';
+/** verdict badges (Security spec §2): icon + word + colour, never colour alone */
 export const badge: Record<Tier, { icon: string; word: string; color: string }> = {
   trusted: { icon: '✓', word: 'Trusted', color: tech.ok },
-  pipe: { icon: '~', word: 'Pipe only', color: tech.check },
+  tunnel: { icon: '◇', word: 'Tunnel only', color: tech.tunnel },
+  unreachable: { icon: '○', word: 'Unreachable', color: ui.mute },
   blocked: { icon: '✕', word: 'Blocked', color: tech.threat },
   checking: { icon: '…', word: 'Checking', color: tech.check },
-  unchecked: { icon: '·', word: 'Not checked', color: ui.mute },
+  unchecked: { icon: '·', word: 'Not checked', color: ui.dim },
 };
 
 /** Design thresholds drawn as contours (plan P2) */

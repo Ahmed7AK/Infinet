@@ -16,7 +16,12 @@ export type ViewMode = 'belief' | 'truth' | 'error';
 export type Mode = 'free' | 'tour' | 'attract';
 
 export interface Note { id: number; sev: 'info' | 'heads' | 'threat'; title: string; detail: string; t: number; born: number }
-export interface ShieldEntry { t: number; ssid: string; bssid: string; verdict: string; reason: string; flags: string[]; handshake?: string }
+export interface ShieldEntry { t: number; ssid: string; bssid: string; verdict: string; reason: string; flags: string[]; handshake?: string; verdictMs?: number }
+
+/** phone app ids (Phone.tsx APPS order; notes and credits are Lab sub-pages) */
+export const TUNNEL_APP = 6;
+export const NOTES_APP = 7;
+export const CREDITS_APP = 8;
 
 /** Demo seed per scenario: chosen so each policy shows *typical* behaviour, not its luckiest/unluckiest run (see PROGRESS.md). */
 export const DEMO_SEED: Record<Playable, number> = { 'building-exit': 26, 'cafe-twin': 21, 'desert-sat': 16 };
@@ -31,6 +36,13 @@ const TOUR: Array<{ sc: Playable; until: number }> = [
   { sc: 'desert-sat', until: 97 },
 ];
 const IDLE_TO_ATTRACT_S = 45;
+
+/** each scene's key moment for "skip to the moment" (demo seeds; sim seconds just before it happens) */
+export const MOMENT: Record<Playable, { t: number; label: string }> = {
+  'building-exit': { t: 14, label: 'the Wi-Fi edge' },
+  'cafe-twin': { t: 19.5, label: 'the fake hotspot' },
+  'desert-sat': { t: 76, label: 'the satellite drop' },
+};
 
 export interface UiState {
   snap: SimSnapshot | null;
@@ -56,12 +68,20 @@ export interface UiState {
   shield: ShieldEntry[];
   mapsVersion: number;
   fps: number;
+  /** "How it works" pop-ups on the phone (Lab can switch them off) */
+  explain: boolean;
+  /** live hotspot scanner: off · connecting · live · replay · lost */
+  scanner: 'off' | 'connecting' | 'live' | 'replay' | 'lost';
+  /** a line about the scanner (permission, replay label) and how many networks the last batch had */
+  scannerNote: string;
+  liveCount: number;
 }
 
 export const useUi = create<UiState>(() => ({
   snap: null, scenario: 'building-exit', vision: false, view: 'belief', mode: 'free', live: false,
   phoneUp: false, app: null, sel: 0, labSel: 0, notes: [], caption: null, help: false, perf: false,
   slow: false, holdB: false, fading: false, markers: {}, unread: 0, shield: [], mapsVersion: 0, fps: 0,
+  explain: true, scanner: 'off', scannerNote: '', liveCount: 0,
 }));
 
 const WALK = 1.4, RUN = 3.0;
@@ -80,6 +100,7 @@ class Driver {
   private autoSlowUntil = 0;
   private phoneAutoLowerAt = 0;
   private realT = 0;
+  private introAt = 0;
   private frames = 0;
   private fpsT = 0;
   keys = new Set<string>();
@@ -113,6 +134,8 @@ class Driver {
     }));
     this.pendingNotes = [];
     this.shown.clear();
+    this.explained.clear();
+    this.introAt = this.realT + 1.2;
     this.infSwitched = false;
     this.lastCaptionAt = this.sim.t - 0.01;
     this.captionsFor(-1);
@@ -127,13 +150,44 @@ class Driver {
     }, 400);
   }
 
-  /** deterministic fast-forward (shots, cinematic): steps the same per-frame logic at 50 ms */
+  /** deterministic fast-forward (shots, cinematic, "skip to the moment"): steps the same per-frame logic at 50 ms,
+   *  also while the first-load hold is on */
   fastForward(toSimT: number) {
+    const hold = this.hold, paused = (globalThis as any).__infinetPaused;
+    this.hold = false; (globalThis as any).__infinetPaused = false;
     let guard = 0;
     while (this.sim.t < toSimT - 1e-6 && guard++ < 100000) this.tick(Math.min(0.05, (toSimT - this.sim.t) + 1e-4));
+    this.hold = hold; (globalThis as any).__infinetPaused = paused;
+  }
+
+  /** jump straight to a scene's key moment (HUD "skip to the moment"), with the fade */
+  skipToMoment() {
+    const sc = useUi.getState().scenario;
+    const at = MOMENT[sc];
+    if (at === undefined) return;
+    useUi.setState({ fading: true });
+    setTimeout(() => {
+      if (this.sim.t > at.t - 0.5) this.load(sc, true);
+      this.fastForward(at.t);
+      this.snap = this.sim.snapshot();
+      useUi.setState({ fading: false, snap: this.snap, live: false });
+    }, 400);
   }
 
   reset() { this.lab = {}; this.travel(useUi.getState().scenario, 'free'); }
+
+  /** spec §5: the "anchor down" moment, 8 s, so the panel sees the fail-closed policy work */
+  anchorMoment() {
+    this.setLab({ anchorDown: true });
+    const sim = this.sim;
+    const until = sim.t + 8;
+    const back = () => {
+      if (this.sim !== sim) return;
+      if (sim.t >= until) this.setLab({ anchorDown: false });
+      else setTimeout(back, 200);
+    };
+    setTimeout(back, 200);
+  }
 
   setLab(l: Partial<LabState>) {
     Object.assign(this.lab, l);
@@ -216,7 +270,13 @@ class Driver {
       } else this.travel(TOUR[this.tourIdx].sc, ui.mode);
       return;
     }
-    if (this.phoneAutoLowerAt && this.realT > this.phoneAutoLowerAt) { this.phoneAutoLowerAt = 0; useUi.setState({ phoneUp: false, app: null }); }
+    if (this.phoneAutoLowerAt && this.realT > this.phoneAutoLowerAt) { this.phoneAutoLowerAt = 0; this.autoRaised = false; useUi.setState({ phoneUp: false, app: null }); }
+    // a scene opens with the tunnel explained once
+    if (this.introAt && this.realT > this.introAt) {
+      this.introAt = 0;
+      const u = useUi.getState();
+      if (u.explain && !(u.phoneUp && !this.autoRaised)) this.autoPhone(TUNNEL_APP, 7);
+    }
 
     if (this.realT - this.lastPublish > 0.1) this.publish();
   }
@@ -277,10 +337,10 @@ class Driver {
       if (e.type === 'switch' && e.policy === 'infinet') this.infSwitched = true;
       if (e.type === 'switch' && e.policy === 'infinet' && (ui.mode !== 'free' || !ui.live) && this.sim.scenario === 'building-exit') this.autoSlowUntil = e.t + 1.0;
       if (e.type.startsWith('trust.') && 'bssid' in e && e.type !== 'trust.checking') {
-        const verdict = e.type === 'trust.blocked' ? 'Blocked' : e.type === 'trust.pipe' ? 'Tunnel only' : 'Trusted';
-        useUi.setState((s) => ({ shield: [...s.shield, { t: e.t, ssid: e.ssid, bssid: e.bssid, verdict, reason: e.reason, flags: e.flags.map((f) => f.text), handshake: e.handshake }] }));
-        if (e.type === 'trust.blocked' && ui.mode !== 'free') this.autoPhone(4, 7);
+        const verdict = ({ 'trust.blocked': 'Blocked', 'trust.tunnel': 'Tunnel only', 'trust.trusted': 'Trusted', 'trust.unreachable': 'Unreachable' } as Record<string, string>)[e.type];
+        useUi.setState((s) => ({ shield: [...s.shield, { t: e.t, ssid: e.ssid, bssid: e.bssid, verdict, reason: e.reason, flags: e.flags.map((f) => `${f.text} (${f.weight})`), handshake: e.handshake, verdictMs: e.verdictMs }] }));
       }
+      this.explainFor(e, ui);
       if (e.type === 'sat.pattern' && ui.mode !== 'free') this.autoPhone(0, 6);
     }
     // timed captions
@@ -311,8 +371,12 @@ class Driver {
     switch (e.type) {
       case 'predict.edge': add('heads', `Wi-Fi edge in ${Math.max(1, Math.round(e.ttlS))} s · checking 5G`, `Seen on the coverage map · ${e.label}`, 'edge'); break;
       case 'switch.done': if (e.policy === 'infinet') add('info', `Switched to ${e.toLabel} · ${Math.round(e.frozenMs)} ms frozen`, 'Checked before use · make-before-break'); break;
-      case 'trust.blocked': add('threat', `Blocked a fake '${e.ssid}'`, `${e.flags.length} red flags · handshake ${e.handshake === 'fail' ? 'failed' : e.handshake ?? 'not needed'}`); break;
-      case 'trust.pipe': add('info', `${e.ssid}: tunnel only`, 'New to us · handshake passed · only our tunnel'); break;
+      case 'trust.blocked': add('threat', `Blocked '${e.ssid}'`, e.handshake === 'authfail' ? 'Its check packets failed authentication' : `${e.flags.length} red flags · nothing was sent to it`); break;
+      case 'trust.tunnel': add('info', `${e.ssid}: tunnel only`, 'New to us · only our encrypted tunnel, as a backup'); break;
+      case 'trust.unreachable': add('heads', `${e.ssid} isn't answering yet`, 'Not counted as an attack · we try again shortly'); break;
+      case 'anchor.lost': add('threat', 'Anchor server not answering', 'Fail closed: nothing leaves the tunnel · messages held'); break;
+      case 'anchor.back': add('info', 'Anchor server back', 'Tunnel up again · held messages sent'); break;
+      case 'flood.on': add('threat', `Beacon flood: ${e.newNames} new names`, 'Trust upgrades frozen until it settles', 'flood'); break;
       case 'sat.pattern': add('info', `${Math.round(e.periodS)} s satellite pattern detected`, 'Voice protected ahead of each hiccup'); break;
       case 'sat.failover': if (e.to === 'GEO') add('heads', 'Satellite backup active', `Round trip ${Math.round(e.rttMs)} ms · call protected`); break;
       case 'call.frozen': if (e.policy === 'infinet') add('threat', 'Call frozen', 'No voice arriving · counting seconds'); break;
@@ -336,7 +400,33 @@ class Driver {
   private autoPhone(app: number, seconds: number) {
     useUi.setState({ phoneUp: true, app, unread: 0 });
     this.phoneAutoLowerAt = this.realT + seconds;
+    this.autoRaised = true;
   }
+  /** the phone was raised by the explainer (not by the user), so it may switch view and lower itself */
+  autoRaised = false;
+  /** the user touched the phone: the explainer leaves it alone for a while */
+  phoneTouchedAt = -1e9;
+  touchPhone() { this.phoneTouchedAt = this.realT; this.autoRaised = false; this.phoneAutoLowerAt = 0; }
+
+  /** "How it works": the phone pops up on the Tunnel view at the moments that show the tunnel and the check */
+  private explainFor(e: SimEvent, ui: UiState) {
+    if (!ui.explain) return;
+    const userBusy = ui.phoneUp && !this.autoRaised && this.realT - this.phoneTouchedAt < 20;
+    if (userBusy) return;
+    const pop = (key: string, seconds: number) => {
+      if (key && this.explained.has(key)) return;
+      if (key) this.explained.add(key);
+      this.autoPhone(TUNNEL_APP, seconds);
+    };
+    if (e.type === 'predict.edge') pop('edge', 9);
+    else if (e.type === 'switch' && e.policy === 'infinet') pop('switch', 7);
+    else if (e.type === 'trust.checking' && !e.bssid.startsWith('cell:')) pop('check', 8);
+    else if (e.type === 'trust.blocked') pop('', 8);
+    else if (e.type === 'trust.unreachable') pop('unreach', 7);
+    else if (e.type === 'anchor.lost') pop('', 10);
+    else if (e.type === 'sat.failover') pop('sat', 8);
+  }
+  private explained = new Set<string>();
 
   /** explainer marker: when the Wi-Fi the call started on really drops below −75 dBm (simulated truth) */
   private trackDies() {

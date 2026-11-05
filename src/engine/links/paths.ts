@@ -27,6 +27,8 @@ export interface PathTruth {
   uplink?: 'LEO' | 'GEO' | 'none';
   attacker?: boolean;
   captivePortal?: boolean;
+  /** the network drops UDP (common in hotels and offices): a WireGuard-style probe gets no answer */
+  udpBlocked?: boolean;
   security?: string;
 }
 

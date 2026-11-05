@@ -193,9 +193,13 @@ class GradeEffect extends Effect {
         vec3 c = inputColor.rgb;
         float L = dot(c, vec3(0.2126, 0.7152, 0.0722));
         vec3 m = texture2D(netMask, uv).rgb;
-        float keep = clamp(max(m.r, max(m.g, m.b)) * 2.5, 0.0, 1.0);
-        vec3 navy = vec3(L) * vec3(0.60, 0.70, 1.0) * 0.55 + vec3(0.003, 0.006, 0.016);
-        outputColor = vec4(mix(c, navy, 0.85 * k * (1.0 - keep)), inputColor.a);
+        // lines, dots, tunnel and rings keep their colour; the heatmap's faint wash does not, so the ground darkens too
+        float keep = smoothstep(0.14, 0.45, max(m.r, max(m.g, m.b)));
+        // night-mode world: luminance only, cooled and about −1.5 EV, so the network is the brightest thing on screen
+        vec3 navy = pow(vec3(L), vec3(1.15)) * vec3(0.55, 0.66, 1.0) * 0.42 + vec3(0.004, 0.007, 0.018);
+        float g = 0.92 * k * (1.0 - keep);
+        // … with the wash's hue laid back over the graded ground, faintly
+        outputColor = vec4(mix(c, navy, g) + m * 0.55 * g, inputColor.a);
       }`, { blendFunction: BlendFunction.NORMAL, uniforms: new Map<string, THREE.Uniform>([['k', new THREE.Uniform(0)], ['netMask', new THREE.Uniform(null)]]) });
     this.scene = scene; this.cam = camera;
     (this.uniforms.get('netMask') as THREE.Uniform).value = this.mask.texture;

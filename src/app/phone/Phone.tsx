@@ -4,16 +4,19 @@
  * measurements, its coverage map (belief), its own trust log. Lab is the one exception and is badged
  * "Demo controls, not part of the product".
  */
-import { Activity, FlaskConical, Map as MapIcon, Phone as PhoneIcon, ShieldCheck, Wifi, type LucideIcon } from 'lucide-react';
+import { Activity, FlaskConical, Map as MapIcon, Phone as PhoneIcon, ShieldCheck, Waypoints, Wifi, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { PARAMS, VISUAL_NOTES, type SimSnapshot } from '../../engine/index';
-import { driver, useUi, type Playable } from '../driver';
+import { CREDITS_APP, driver, NOTES_APP, TUNNEL_APP, useUi, type Playable } from '../driver';
+import { TunnelApp } from './TunnelApp';
 import { badge, fmtDb, fmtMs, fmtPct, fmtS, pathName, tech, THRESH, ui, type Tier } from '../tokens';
 
 export const APPS: Array<{ name: string; icon: LucideIcon }> = [
   { name: 'Infinet', icon: Activity }, { name: 'Networks', icon: Wifi }, { name: 'Call', icon: PhoneIcon },
   { name: 'Map', icon: MapIcon }, { name: 'Shield', icon: ShieldCheck }, { name: 'Lab', icon: FlaskConical },
+  { name: 'Tunnel', icon: Waypoints },
 ];
+void TUNNEL_APP;
 
 // ───────────── Lab controls (arrow-navigable) ─────────────
 export interface LabControl { label: string; value: (s: SimSnapshot) => string; change?: (dir: 1 | -1, s: SimSnapshot) => void; press?: (s: SimSnapshot) => void }
@@ -25,18 +28,24 @@ export const LAB: LabControl[] = [
   { label: 'Scenario', value: (s) => SCEN_NAME[s.scenario] ?? s.scenario, change: (d, s) => driver.travel(SCEN[(SCEN.indexOf(s.scenario as Playable) + d + 3) % 3], 'free') },
   { label: 'Compare with', value: (s) => BASE[s.lab.baseline], change: () => driver.cycleBaseline() },
   { label: 'Attacker', value: (s) => (s.lab.attackerEnabled ? 'on' : 'off'), change: (_, s) => driver.setLab({ attackerEnabled: !s.lab.attackerEnabled }), press: (s) => driver.setLab({ attackerEnabled: !s.lab.attackerEnabled }) },
-  { label: 'Attacker mode', value: (s) => s.lab.attackerMode, change: (_, s) => driver.setLab({ attackerMode: s.lab.attackerMode === 'intercept' ? 'relay' : 'intercept' }) },
+  { label: 'Café attack', value: (s) => VARIANT[s.lab.attackVariant], change: (d, s) => driver.setLab({ attackVariant: VARIANTS[(VARIANTS.indexOf(s.lab.attackVariant) + d + 3) % 3] }) },
+  { label: 'Attacker mode', value: (s) => (s.lab.attackerMode === 'intercept' ? 'tampers' : 'relays'), change: (_, s) => driver.setLab({ attackerMode: s.lab.attackerMode === 'intercept' ? 'relay' : 'intercept' }) },
   { label: 'Attacker power', value: (s) => `+${s.lab.attackerOffsetDb} dB vs map`, change: (d, s) => driver.setLab({ attackerOffsetDb: clamp(s.lab.attackerOffsetDb + 3 * d, 0, 27) }) },
   { label: 'Forged disconnects', value: (s) => (s.lab.deauth ? 'on' : 'off'), change: (_, s) => driver.setLab({ deauth: !s.lab.deauth }) },
-  { label: 'Block threshold', value: (s) => `${s.lab.blockThreshold} points`, change: (d, s) => driver.setLab({ blockThreshold: clamp(s.lab.blockThreshold + d, 2, 8) }) },
+  { label: 'Café blocks UDP', value: (s) => (s.lab.cafeBlocksUdp ? 'yes' : 'no'), change: (_, s) => driver.setLab({ cafeBlocksUdp: !s.lab.cafeBlocksUdp }), press: (s) => driver.setLab({ cafeBlocksUdp: !s.lab.cafeBlocksUdp }) },
+  { label: 'Anchor server', value: (s) => (s.lab.anchorDown ? 'down' : 'up'), change: (_, s) => driver.setLab({ anchorDown: !s.lab.anchorDown }), press: (s) => driver.setLab({ anchorDown: !s.lab.anchorDown }) },
+  { label: 'Anchor-down moment', value: () => '8 s ›', press: () => driver.anchorMoment() },
+  { label: 'How-it-works pop-ups', value: () => (useUi.getState().explain ? 'on' : 'off'), change: () => useUi.setState((u) => ({ explain: !u.explain })), press: () => useUi.setState((u) => ({ explain: !u.explain })) },
   { label: 'LEO outage', value: (s) => (s.lab.leoOutage ? 'blocked' : 'clear'), change: (_, s) => driver.setLab({ leoOutage: !s.lab.leoOutage }), press: (s) => driver.setLab({ leoOutage: !s.lab.leoOutage }) },
   { label: 'Map staleness', value: (s) => `${Math.round(s.lab.mapStaleness * 100)} %`, change: (d, s) => driver.setLab({ mapStaleness: clamp(Math.round((s.lab.mapStaleness + 0.1 * d) * 10) / 10, 0, 1) }) },
   { label: 'Walking speed', value: (s) => `${s.lab.walkSpeed.toFixed(1)} m/s`, change: (d, s) => driver.setLab({ walkSpeed: clamp(Math.round((s.lab.walkSpeed + 0.1 * d) * 10) / 10, 0.8, 2.0) }) },
   { label: 'Seed', value: (s) => String(s.seed), press: () => driver.reset() },
   { label: 'Reset scenario', value: () => 'Enter', press: () => driver.reset() },
-  { label: 'Sim notes', value: () => 'Enter ›', press: () => useUi.setState({ app: 6 }) },
-  { label: 'Credits', value: () => 'Enter ›', press: () => useUi.setState({ app: 7 }) },
+  { label: 'Sim notes', value: () => 'Enter ›', press: () => useUi.setState({ app: NOTES_APP }) },
+  { label: 'Credits', value: () => 'Enter ›', press: () => useUi.setState({ app: CREDITS_APP }) },
 ];
+const VARIANTS = ['copy', 'perfect', 'downgrade'] as const;
+const VARIANT: Record<string, string> = { copy: 'open copy', perfect: 'perfect copy', downgrade: 'downgrade' };
 
 function Badge({ tier }: { tier: Tier }) {
   const b = badge[tier];
@@ -49,13 +58,16 @@ function Status({ s }: { s: SimSnapshot }) {
   const mm = Math.floor(s.t / 60), ss = Math.floor(s.t % 60);
   const wifi = s.scan.find((e) => inf?.wifiBssid === e.bssid);
   const cell = s.links.find((l) => l.kind === 'cell' && l.up);
-  const [c, word] = blockedNow ? [tech.threat, '✕ Blocked'] : inf?.checked ? [tech.ok, '✓ Safe'] : [tech.check, '… Checking'];
+  const [c, word] = s.infinet.anchorLost ? [tech.threat, '✕ No anchor'] : blockedNow ? [tech.threat, '✕ Blocked'] : inf?.checked ? [tech.ok, '✓ Tunnel'] : [tech.check, '… Checking'];
+  // left of the island: the clock and the road the call is on; right of it: the shield (the island hides the middle)
+  const onCell = inf?.activePath?.startsWith('cell:');
   return (
     <div className="status">
-      <span className="num">10:{String((12 + mm) % 60).padStart(2, '0')}<span style={{ color: ui.dim }}>:{String(ss).padStart(2, '0')}</span></span>
+      <span className="l">
+        <span className="num">10:{String((12 + mm) % 60).padStart(2, '0')}<span style={{ color: ui.dim }}>:{String(ss).padStart(2, '0')}</span></span>
+        {onCell ? cell && <span style={{ color: tech.cell, font: '600 12px/1 var(--mono)' }}>5G</span> : wifi && <Wifi size={14} color={ui.mute} />}
+      </span>
       <span className="r">
-        {wifi && <Wifi size={15} />}
-        {cell && <span style={{ color: tech.cell }}>5G</span>}
         <span className="shieldpill" style={{ color: c, background: `${c}22` }}>{word}</span>
       </span>
     </div>
@@ -68,7 +80,7 @@ function Home({ sel }: { sel: number }) {
       {APPS.map((a, i) => {
         const Ic = a.icon;
         return (
-          <div key={a.name} className={`app interactive ${i === sel ? 'sel' : ''}`} onClick={() => useUi.setState({ app: i, sel: i })}>
+          <div key={a.name} className={`app interactive ${i === sel ? 'sel' : ''}`} onClick={() => { driver.touchPhone(); useUi.setState({ app: i, sel: i }); }}>
             <div className="ico"><Ic size={28} strokeWidth={1.8} /></div>
             {a.name}
           </div>
@@ -101,9 +113,13 @@ function InfinetApp({ s }: { s: SimSnapshot }) {
   return (
     <>
       <h4>Infinet</h4>
+      {inf.anchorLost && (
+        <div className="card bad"><div className="a" style={{ color: tech.threat }}>Anchor server not answering</div><div className="b">Fail closed: nothing leaves the tunnel. The call waits; important messages are held and sent when it is back.</div></div>
+      )}
+      {inf.flood && <div className="card warn"><div className="a" style={{ color: tech.check }}>Beacon flood nearby</div><div className="b">Many new names at once. Trust upgrades are frozen until it settles.</div></div>}
       <div className="card">
         <div className="a" style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span>{pathName(pv.activePath)}</span>{tv && <Badge tier={tv.tier} />}</div>
-        <div className="b">{pv.mode === 'duplicate' ? 'Voice on two paths while it switches' : 'One path'} · encrypted tunnel to the anchor server</div>
+        <div className="b">{pv.mode === 'duplicate' ? 'Two tunnels, one per road, while it switches' : 'All traffic in one encrypted tunnel'} · to the anchor server</div>
       </div>
       {inf.ttlS !== undefined && inf.ttlS < 10 && (
         <div className="card warn"><div className="a" style={{ color: tech.check }}>Wi-Fi edge in {fmtS(inf.ttlS)}</div><div className="b">map says {fmtS(inf.ttlMapS)} · signal trend says {fmtS(inf.ttlTrendS)}</div></div>
@@ -127,23 +143,28 @@ function InfinetApp({ s }: { s: SimSnapshot }) {
   );
 }
 
-const SEC: Record<string, string> = { OPEN: 'Open', OWE: 'Enhanced Open', 'WPA2-PSK': 'WPA2', 'WPA3-SAE': 'WPA3', 'WPA3-ENT': 'WPA3-Ent' };
+const SEC: Record<string, string> = { OPEN: 'Open', WEP: 'WEP', 'WPA-TKIP': 'WPA/TKIP', OWE: 'Enhanced Open', 'WPA2-PSK': 'WPA2', 'WPA2/3': 'WPA2/3', 'WPA2-ENT': 'WPA2-Ent', 'WPA3-SAE': 'WPA3', 'WPA3-ENT': 'WPA3-Ent' };
 function NetworksApp({ s }: { s: SimSnapshot }) {
-  const list = [...s.scan].sort((a, b) => b.rssiDbm - a.rssiDbm);
+  const list = [...s.scan].filter((e) => !e.anon).sort((a, b) => b.rssiDbm - a.rssiDbm).slice(0, 7);
+  const anon = s.scan.filter((e) => e.anon).length;
+  const scanner = useUi((u) => u.scanner);
+  const note = useUi((u) => u.scannerNote);
   return (
     <>
       <h4>Networks</h4>
+      {scanner !== 'off' && <div className="sub" style={{ fontSize: 13 }}>{scanner === 'replay' ? 'Replay of a synthetic example, not a real scan.' : `Live scanner: ${scanner}.`} Only Infinet-Demo-… names are shown; everyone else is an anonymous dot.{note ? ` ${note}.` : ''}</div>}
       <div>
         {list.map((e) => {
           const tv = s.infinet.trust[e.bssid];
           return (
             <div key={e.bssid} className="net">
-              <div className="l1"><span>{e.ssid}</span><Badge tier={tv?.tier ?? 'unchecked'} /></div>
+              <div className="l1"><span>{e.ssid}{e.live && <span className="livetag">LIVE</span>}</span><Badge tier={tv?.tier ?? 'unchecked'} /></div>
               <div className="l2"><span>{e.bssid.slice(0, 8)}:··:·· · ch {e.channel} · {SEC[e.security] ?? e.security}</span><span style={{ color: e.rssiDbm < THRESH.wifiData ? tech.check : ui.text }}>{fmtDb(e.rssiDbm)}</span></div>
-              {tv && tv.flags.length > 0 && <div className="fl">{tv.flags.map((f) => f.text).join(' · ')}</div>}
+              {tv && tv.flags.length > 0 && <div className="fl">{tv.flags.map((f) => `${f.text} (${f.weight})`).join(' · ')}</div>}
             </div>
           );
         })}
+        {anon > 0 && <div className="net"><div className="l2"><span>+ {anon} other {anon === 1 ? 'network' : 'networks'} nearby · anonymous, never joined</span></div></div>}
       </div>
     </>
   );
@@ -212,11 +233,11 @@ function ShieldApp() {
   return (
     <>
       <h4>Shield</h4>
-      <div className="sub">Every new network is checked before it is trusted.</div>
+      <div className="sub">Every new network is screened, then probed in quarantine, before it carries anything. Whatever the verdict, the call stays in the tunnel.</div>
       {!log.length && <div className="sub">No new networks checked yet.</div>}
       {[...log].reverse().slice(0, 5).map((e, i) => (
         <div key={i} className={`card ${e.verdict === 'Blocked' ? 'bad' : ''}`}>
-          <div className="a">{e.verdict} · {e.ssid} <span className="num" style={{ fontSize: 13, color: ui.mute }}>t = {e.t.toFixed(1)} s</span></div>
+          <div className="a">{e.verdict} · {e.ssid} <span className="num" style={{ fontSize: 13, color: ui.mute }}>{e.verdictMs !== undefined ? `in ${fmtMs(e.verdictMs)}` : `t = ${e.t.toFixed(1)} s`}</span></div>
           <div className="b">{e.reason}</div>
           {e.flags.length > 0 && <div className="b" style={{ color: tech.threat }}>{e.flags.join(' · ')}</div>}
         </div>
@@ -262,7 +283,7 @@ function CreditsApp() {
       <h4>Credits</h4>
       <div className="scroll">
         <p>Team Infinet · ATRC ATP 2026 · EDGE · Stand 31.</p>
-        <p>Skies and surface textures: Poly Haven (CC0). Props and the placeholder figure: built in Blender by script for this demo.</p>
+        <p>Skies, surface textures and many props: Poly Haven (CC0). People and their animation: Microsoft Rocketbox (MIT). Other props: built in Blender by script for this demo.</p>
         <p>Fonts: Inter and JetBrains Mono (SIL Open Font License), bundled. Icons: Lucide (ISC).</p>
         <p>three.js, React Three Fiber, drei, postprocessing, N8AO, React, zustand, Vite (MIT).</p>
         <p>Models and numbers: 3GPP TR 38.901, ITU-T G.107/G.113, IEEE 802.11, RFC 6298, RFC 2198, RFC 3550, published LEO/GEO and app-reconnect measurements. See Sim notes.</p>
@@ -280,7 +301,7 @@ export function Phone() {
   const s = useUi((st) => st.snap);
   if (!s) return null;
   return (
-    <div className={`phone ${up ? '' : 'down'}`} onClick={() => { if (!up) useUi.setState({ phoneUp: true, unread: 0 }); }}>
+    <div className={`phone ${up ? '' : 'down'}`} onClick={() => { driver.touchPhone(); if (!up) useUi.setState({ phoneUp: true, unread: 0 }); }}>
       <div className="scr">
         <div className="island" />
         <Status s={s} />
@@ -296,8 +317,9 @@ export function Phone() {
               {app === 3 && <MapApp s={s} />}
               {app === 4 && <ShieldApp />}
               {app === 5 && <LabApp s={s} sel={labSel} />}
-              {app === 6 && <NotesApp />}
-              {app === 7 && <CreditsApp />}
+              {app === TUNNEL_APP && <TunnelApp s={s} />}
+              {app === NOTES_APP && <NotesApp />}
+              {app === CREDITS_APP && <CreditsApp />}
             </div>
             <div className="hint">{app === null ? 'arrows choose · Enter opens · ⌫ lowers' : app === 5 ? '↑↓ select · ←→ change · Enter · ⌫ back' : '⌫ back'}</div>
           </>

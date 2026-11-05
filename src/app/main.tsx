@@ -10,6 +10,7 @@ import { App } from './App';
 import { driver, useUi, type Playable, type ViewMode } from './driver';
 import { SCENARIOS } from '../engine/index';
 import { visionK } from './scene/vision';
+import { startLive } from './live';
 
 // Booth hardening (plan §17): on an uncaught error, reload and resume the last scene (kept in sessionStorage).
 if (import.meta.env.PROD) {
@@ -24,6 +25,8 @@ createRoot(document.getElementById('root')!).render(<App />);
 // Debug / recording hooks: ?scene=cafe-twin&t=25&vision=1&view=truth&app=4&baseline=b2
 (window as any).__infinet = { driver, useUi };
 const q = new URLSearchParams(location.search);
+// live hotspot scanner (Security spec §6): ?live=1&token=… when the Infinet Scanner app serves this page
+startLive(q);
 const sc = q.get('scene') as Playable | null;
 if (sc && SCENARIOS[sc]) {
   driver.load(sc, false);
