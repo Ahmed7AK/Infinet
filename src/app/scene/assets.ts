@@ -53,6 +53,10 @@ export const MAT = {
   glassClear: () => new THREE.MeshPhysicalMaterial({ color: '#d8e6ea', roughness: 0.03, metalness: 0, transparent: true, opacity: 0.16, envMapIntensity: 1.2, depthWrite: false, side: THREE.DoubleSide }),
   windowDark: () => new THREE.MeshStandardMaterial({ color: '#1d2a33', roughness: 0.08, metalness: 0.6, envMapIntensity: 1.5 }),
   frame: () => new THREE.MeshStandardMaterial({ color: '#3a3d42', roughness: 0.45, metalness: 0.7 }),
+  // façade glazing: reflects the sky (white base, tinted per pane by instance colour), mid-grey anodised frames
+  windowGlass: () => new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.05, metalness: 0.55, envMapIntensity: 1.0, clearcoat: 0.6, clearcoatRoughness: 0.05 }),
+  windowFrame: () => new THREE.MeshStandardMaterial({ color: '#5b5f63', roughness: 0.5, metalness: 0.6 }),
+  shopGlass: () => new THREE.MeshPhysicalMaterial({ color: '#56656e', roughness: 0.04, metalness: 0.5, envMapIntensity: 1.1, clearcoat: 0.5 }),
   curb: () => new THREE.MeshStandardMaterial({ color: '#b9b4aa', roughness: 0.85 }),
   paintLine: () => new THREE.MeshStandardMaterial({ color: '#e9e6dc', roughness: 0.7 }),
   ceiling: () => new THREE.MeshStandardMaterial({ color: '#e9e8e4', roughness: 0.9, side: THREE.BackSide }),
@@ -93,10 +97,18 @@ export const MODELS = [
   'ap_ceiling', 'ap_cafe', 'adapter_usb', 'laptop', 'phone_hand', 'rack_42u', 'tower_monopole', 'vsat_geo', 'leo_terminal',
   'site_router', 'sat_leo', 'sat_geo', 'gateway_cluster', 'desk_set', 'meeting_table', 'cafe_counter',
   'car_sedan', 'palm', 'street_lamp', 'bollard', 'bench', 'container_office', 'generator',
+  'car_suv', 'pickup', 'office_chair', 'bus_shelter', 'street_bin', 'crossing_sign', 'water_dispenser', 'printer', 'whiteboard', 'windsock',
   // Poly Haven (CC0)
-  'ph_bistro_set', 'ph_stool', 'ph_pendant', 'ph_vase', 'ph_planter', 'ph_plant_tall', 'ph_plant_wide', 'ph_sofa',
+  'ph_bistro_set', 'ph_pendant', 'ph_vase', 'ph_planter', 'ph_plant_tall', 'ph_plant_wide', 'ph_sofa',
   'ph_coffee_table', 'ph_armchair', 'ph_shelves', 'ph_cabinet', 'ph_hydrant', 'ph_utility_box', 'ph_manhole', 'ph_aircon',
   'ph_barrier', 'ph_jerrycan', 'ph_crate', 'ph_box', 'ph_power_cabinet', 'ph_rocks',
+  'ph_generator', 'ph_drum', 'ph_plastic_crate', 'ph_hand_truck', 'ph_toolbox', 'ph_monobloc', 'ph_picnic_table',
+  'ph_bush', 'ph_drawers', 'ph_desk_plant', 'ph_desk_lamp', 'ph_stationery', 'ph_lounge_chair',
+  'ph_round_table', 'ph_dining_chair', 'ph_bar_stool', 'ph_cake',
+  'ph_wet_floor', 'ph_notepads', 'ph_binders', 'ph_shelf_narrow', 'ph_ottoman', 'ph_round_coffee_table',
+  'ph_ceiling_fan', 'ph_croissant', 'ph_basket', 'ph_cake_berry', 'ph_tea_set', 'ph_jug', 'ph_chalkboard', 'ph_display_shelves', 'ph_vase_white',
+  'ph_covered_car', 'ph_shutter', 'ph_ladder', 'ph_tool_cart', 'ph_tyre', 'ph_water_jug', 'ph_metal_rack', 'ph_crate_red', 'ph_tote',
+  'ph_breaker_box', 'ph_hose', 'ph_trash_can', 'ph_broom', 'ph_security_light',
 ] as const;
 export type ModelName = (typeof MODELS)[number];
 export const modelUrl = (n: ModelName) => `/models/${n}.glb`;

@@ -25,11 +25,11 @@ const TEXTURES: Array<{ id: string; res: string; as: string }> = [
 /** Poly Haven model → our GLB name and a triangle budget (the importer decimates anything above it). */
 // drop: object names containing this are left out (sets that ship a clean and a weathered copy side by side)
 // height: rescale to this height in metres (a model authored at the wrong scale)
+// tex: cap the texture width in pixels (small props)
 // split: a set of separate objects (rocks): each is recentred and kept as its own top-level node in one GLB
-export const MODELS: Array<{ id: string; as: string; tris: number; split?: boolean; drop?: string; height?: number }> = [
+export const MODELS: Array<{ id: string; as: string; tris: number; split?: boolean; drop?: string; height?: number; tex?: number }> = [
   // café
   { id: 'outdoor_table_chair_set_01', as: 'ph_bistro_set', tris: 12000 },
-  { id: 'metal_stool_01', as: 'ph_stool', tris: 6000 },
   { id: 'modern_ceiling_lamp_01', as: 'ph_pendant', tris: 6000 },
   { id: 'ceramic_vase_02', as: 'ph_vase', tris: 3000 },
   { id: 'planter_box_01', as: 'ph_planter', tris: 8000 },
@@ -52,7 +52,59 @@ export const MODELS: Array<{ id: string; as: string; tris: number; split?: boole
   { id: 'wooden_crate_01', as: 'ph_crate', tris: 7000 },
   { id: 'cardboard_box_01', as: 'ph_box', tris: 3000 },
   { id: 'utility_box_02', as: 'ph_power_cabinet', tris: 6000 },
+  { id: 'portable_generator', as: 'ph_generator', tris: 12000, tex: 512 },
+  { id: 'barrel_03', as: 'ph_drum', tris: 2000 },
+  { id: 'plastic_crate_02', as: 'ph_plastic_crate', tris: 3000 },
+  { id: 'hand_truck', as: 'ph_hand_truck', tris: 4000 },
+  { id: 'metal_toolbox', as: 'ph_toolbox', tris: 4000 },
+  { id: 'plastic_monobloc_chair_01', as: 'ph_monobloc', tris: 3000 },
+  { id: 'wooden_picnic_table', as: 'ph_picnic_table', tris: 5000 },
+  { id: 'wild_rooibos_bush', as: 'ph_bush', tris: 10000, split: true },
+  // office, second pass
+  { id: 'drawer_cabinet', as: 'ph_drawers', tris: 6000 },
+  { id: 'potted_plant_04', as: 'ph_desk_plant', tris: 3000 },
+  { id: 'desk_lamp_arm_01', as: 'ph_desk_lamp', tris: 4000 },
+  { id: 'stationery_supplies', as: 'ph_stationery', tris: 2500 },
+  { id: 'mid_century_lounge_chair', as: 'ph_lounge_chair', tris: 6000 },
+  // café, second pass
+  { id: 'round_wooden_table_01', as: 'ph_round_table', tris: 4000, height: 0.75 },
+  { id: 'dining_chair_02', as: 'ph_dining_chair', tris: 5000 },
+  { id: 'bar_chair_round_01', as: 'ph_bar_stool', tris: 5000 },
+  { id: 'carrot_cake', as: 'ph_cake', tris: 2000, tex: 512 },
   { id: 'namaqualand_rocks_01', as: 'ph_rocks', tris: 12000, split: true }, // four field stones, ~0.2 m: scaled up in the scene
+  // office, third pass (projector_screen was tried and dropped: its screen is torn; the meeting room has a display on a stand)
+  { id: 'WetFloorSign_01', as: 'ph_wet_floor', tris: 1000 },
+  { id: 'office_notepads', as: 'ph_notepads', tris: 1000, tex: 512, split: true },
+  { id: 'binder_notebook', as: 'ph_binders', tris: 3000, tex: 512, split: true },
+  { id: 'steel_frame_shelves_02', as: 'ph_shelf_narrow', tris: 3000 },
+  { id: 'Ottoman_01', as: 'ph_ottoman', tris: 2500 },
+  { id: 'coffee_table_round_01', as: 'ph_round_coffee_table', tris: 3000 },
+  // café, third pass
+  { id: 'ceiling_fan', as: 'ph_ceiling_fan', tris: 6000, tex: 512 },
+  { id: 'croissant', as: 'ph_croissant', tris: 800, tex: 256 },
+  { id: 'wicker_basket_01', as: 'ph_basket', tris: 3000, tex: 512 },
+  { id: 'strawberry_chocolate_cake', as: 'ph_cake_berry', tris: 3000, tex: 512 },
+  { id: 'tea_set_01', as: 'ph_tea_set', tris: 6000, tex: 512 },
+  { id: 'jug_01', as: 'ph_jug', tris: 1500, tex: 512 },
+  { id: 'standing_chalkboard_01', as: 'ph_chalkboard', tris: 1500 },
+  { id: 'wooden_display_shelves_01', as: 'ph_display_shelves', tris: 2000 },
+  { id: 'ceramic_vase_01', as: 'ph_vase_white', tris: 1500, tex: 512 },
+  // street
+  { id: 'covered_car', as: 'ph_covered_car', tris: 6000 },
+  { id: 'rollershutter_door', as: 'ph_shutter', tris: 1200, drop: 'graffiti' },
+  // desert site, third pass
+  { id: 'ladder_sectioned_01', as: 'ph_ladder', tris: 5000, split: true },
+  { id: 'tool_cart', as: 'ph_tool_cart', tris: 6000 },
+  { id: 'old_tyre', as: 'ph_tyre', tris: 2000, tex: 512 },
+  { id: 'plastic_bottle_gallon', as: 'ph_water_jug', tris: 2000, tex: 512 },
+  { id: 'worn_metal_rack', as: 'ph_metal_rack', tris: 3000 },
+  { id: 'plastic_crate_03', as: 'ph_crate_red', tris: 4000, tex: 512 },
+  { id: 'industrial_pastic_container', as: 'ph_tote', tris: 3000, tex: 512 },
+  { id: 'power_box_01', as: 'ph_breaker_box', tris: 4000, tex: 512 },
+  { id: 'garden_hose_wall_mounted_01', as: 'ph_hose', tris: 3000, tex: 512 },
+  { id: 'metal_trash_can', as: 'ph_trash_can', tris: 3000, tex: 512, drop: 'rust' },
+  { id: 'plastic_broom', as: 'ph_broom', tris: 2000, tex: 512 },
+  { id: 'security_light', as: 'ph_security_light', tris: 2000, tex: 512 },
 ];
 const MODEL_RES = '1k';
 

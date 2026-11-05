@@ -112,6 +112,12 @@ for m in json.load(open(os.path.join(SRC, 'models.json'))):
     reset()
     bpy.ops.import_scene.gltf(filepath=os.path.join(SRC, m['gltf']))
     objs = meshes()
+    if m.get('tex'):
+        # small props: cap the texture size (the 1k sources stay 1k on disk)
+        for im in bpy.data.images:
+            w, h = im.size
+            if w > m['tex']:
+                im.scale(m['tex'], max(1, round(h * m['tex'] / w)))
     if m.get('drop'):
         for o in [o for o in objs if m['drop'] in o.name]:
             bpy.data.objects.remove(o)

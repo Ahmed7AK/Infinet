@@ -30,6 +30,30 @@ export const PEOPLE: Array<{ id: string; group: 'Adults' | 'Professions'; sex: '
   { id: 'Male_Adult_11', group: 'Adults', sex: 'm', as: 'cafe_m2', tex: 512 },         // the customer with the laptop: looks like everyone else
   // desert site
   { id: 'Male_Adult_05', group: 'Adults', sex: 'm', as: 'site_m1', tex: 512 },         // field vest
+  // second pass: more people everywhere (ambience)
+  { id: 'Business_Female_02', group: 'Professions', sex: 'f', as: 'office_f3', tex: 512 },
+  { id: 'Business_Male_01', group: 'Professions', sex: 'm', as: 'office_m4', tex: 512 },
+  { id: 'Business_Male_04', group: 'Professions', sex: 'm', as: 'office_m5', tex: 512 },
+  { id: 'Female_Adult_03', group: 'Adults', sex: 'f', as: 'office_f4', tex: 512 },
+  { id: 'Male_Adult_13', group: 'Adults', sex: 'm', as: 'office_m6', tex: 512 },
+  { id: 'Business_Female_03', group: 'Professions', sex: 'f', as: 'office_f5', tex: 512 },
+  { id: 'Security_Male_01', group: 'Professions', sex: 'm', as: 'guard', tex: 512 },
+  { id: 'Male_Adult_01', group: 'Adults', sex: 'm', as: 'street_m2', tex: 512 },
+  { id: 'Male_Adult_03', group: 'Adults', sex: 'm', as: 'street_m3', tex: 512 },
+  { id: 'Male_Adult_14', group: 'Adults', sex: 'm', as: 'street_m4', tex: 512 },
+  { id: 'Male_Adult_16', group: 'Adults', sex: 'm', as: 'street_m5', tex: 512 },
+  { id: 'Female_Adult_01', group: 'Adults', sex: 'f', as: 'street_f2', tex: 512 },
+  { id: 'Female_Adult_04', group: 'Adults', sex: 'f', as: 'street_f3', tex: 512 },
+  { id: 'Female_Adult_12', group: 'Adults', sex: 'f', as: 'street_f4', tex: 512 },
+  { id: 'Female_Adult_11', group: 'Adults', sex: 'f', as: 'street_f5', tex: 512 },     // long dress
+  { id: 'Gardener_Male_01', group: 'Professions', sex: 'm', as: 'gardener', tex: 512 },
+  { id: 'Female_Adult_05', group: 'Adults', sex: 'f', as: 'cafe_f3', tex: 512 },
+  { id: 'Male_Adult_15', group: 'Adults', sex: 'm', as: 'cafe_m3', tex: 512 },         // kandura
+  { id: 'Female_Adult_15', group: 'Adults', sex: 'f', as: 'cafe_f4', tex: 512 },
+  { id: 'Male_Adult_12', group: 'Adults', sex: 'm', as: 'cafe_m4', tex: 512 },
+  { id: 'Construction_Male_01', group: 'Professions', sex: 'm', as: 'site_m2', tex: 512 },
+  { id: 'Construction_Male_02', group: 'Professions', sex: 'm', as: 'site_m3', tex: 512 },
+  { id: 'Construction_Male_04', group: 'Professions', sex: 'm', as: 'site_m4', tex: 512 },
 ];
 
 /**
@@ -47,6 +71,17 @@ export const CLIPS: Array<{ name: string; set: 'static' | 'xy'; as: string; only
   { name: 'sit_table_idle_neutral_01', set: 'static', as: 'sit_table', range: [1, 301] },
   { name: 'walk_neutral_01', set: 'xy', as: 'walk' },
   { name: 'run_neutral_01', set: 'xy', as: 'run' },
+  // second pass: variety for the background people
+  { name: 'walk_stroll_01', set: 'xy', as: 'stroll' },
+  { name: 'sit_table_gestic_thoughtful', set: 'static', as: 'sit_think', range: [1, 301] },
+  { name: 'sit_table_idle_look_around', set: 'static', as: 'sit_look', range: [1, 301] },
+  { name: 'sit_chair_idle_relaxed_01', set: 'static', as: 'sit_relax', range: [1, 301] },
+  { name: 'drink_drinking', set: 'static', as: 'drink', range: [1, 301] },
+  { name: 'idle_waiting_01', set: 'static', as: 'wait', range: [1, 301] },
+  { name: 'gestic_listen_neutral_01', set: 'static', as: 'listen', range: [1, 301] },
+  { name: 'work_table', set: 'static', as: 'work', range: [1, 301] },
+  { name: 'work_mid', set: 'static', as: 'work_mid', range: [1, 301] },
+  { name: 'crouch_idle', set: 'static', as: 'crouch', range: [1, 301] },
 ];
 
 const DL = 'assets-src/downloads/rocketbox';

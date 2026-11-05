@@ -1,4 +1,4 @@
-# Progress · 4 Nov 2026
+# Progress · 5 Nov 2026
 
 ## Status
 
@@ -6,12 +6,13 @@
 |---|---|
 | Engine: radio, maps, prediction, trust, LEO/GEO, voice, policies B1/B2/B3/Infinet + ablations | Done · 22 tests pass |
 | Scenarios: leaving the building, fake café Wi-Fi, desert site | Done · demo seeds 26 / 21 / 16 (near median) |
-| 3D world, realistic (plan D3): HDR skies with a measured, shadow-casting sun, PBR textures, 27 Blender-built props, people, third-person camera with collision | Done |
+| 3D world, realistic (plan D3): HDR skies with a measured, shadow-casting sun, an indoor ceiling light, PBR textures, 33 Blender-built and 67 Poly Haven props, 37 Rocketbox people, third-person camera with collision | Done |
+| Life in the scene (scene-only, the engine never sees it): moving traffic (IDM) that stops at the zebra and for people, 22 parked cars, walkers on both pavements, a crosser, people at the bus stop, café, meeting room and site; swaying palms, café fans, a windsock | Done |
 | Network Vision (N): grade, 1 m heatmap with −67 / −75 / −100 dBm contours, belief · truth · error (Shift+N), tunnel tube, packets on every hop, sectors, beacons, backhaul, anchor, satellites, trust holograms, edge countdown | Done |
 | HUD (plan §8): scene title, comparison strip with edge-seen / Wi-Fi-dies markers, Vision tag + legend, hints, notifications, rotating minimap, captions | Done |
 | Phone (Infinet OS), peeking bottom-right: Infinet, Networks, Call, Map, Shield, Lab, Sim notes, Credits | Done |
 | Modes: free roam, tour (T), attract (45 s idle), slow-mo, fast travel | Done |
-| Booth hardening: offline, auto-reload on error / WebGL loss, F9 reset | Done · `npm run qa` 14/14 PASS (61 fps headless) |
+| Booth hardening: offline, auto-reload on error / WebGL loss, F9 reset | Done · `npm run qa` 14/14 PASS (61 fps headless; 60 fps in every zone) |
 | Batch: 300 runs × 3 scenarios + property test | Done → `results/2026-11-04/SUMMARY.md` |
 | Screenshots (17 beats, Reality and Vision) | Done → `results/shots/` (old style-guide shots kept in `results/shots-styleguide/`) |
 | Cinematic recorder | Done (`npm run cinematic`); full video not yet rendered |
@@ -36,7 +37,9 @@
 
 - [x] **People.** Done with Microsoft Rocketbox (MIT, no login) instead of Mixamo: 14 rigged people and 17 clips (idle, look around, talk, texting, phone call, sitting at a chair, sitting at a table, walk, run). The Blender mannequin is gone.
 - [ ] Optional: a typing-at-a-keyboard clip (Rocketbox has none; the office workers use "sitting at a table"). Mixamo's "Typing" is the fallback; it needs an Adobe login and its licence recorded in CREDITS.md.
-- [x] Poly Haven furniture and street clutter (22 CC0 models: bistro sets, plants, sofa, shelves, hydrants, utility boxes, AC units, barriers, rocks …).
+- [x] Poly Haven furniture and street clutter (38 CC0 models: bistro sets, round tables, dining chairs, bar stools, plants, desk lamps, sofa, lounge chair, shelves, drawers, hydrants, utility boxes, AC units, barriers, generator, drums, monobloc chairs, picnic table, scrub, rocks …).
+- [x] Indoor shadows (ceiling light under a roof), contact shadows under people, 4096 px sun shadows; framed, reflective windows, shopfronts and floor bands on the buildings.
+- [x] More furniture and life (third pass): remodelled saloon, SUV and pickup; moving traffic; 23 more people and 10 more clips; 29 more Poly Haven models; office chairs, bus shelter, bins, crossing signs, water cooler, printer, whiteboard, display, windsock; lit monitors. `?cam=x,y,h,lookX,lookY,lookH` fixes the camera for checking a spot.
 - [ ] Optional: Sketchfab CC-BY models for what Poly Haven lacks (cars, date palms, office chairs, monitors). Needs a Sketchfab account and API token in `.env.local` (add it to `.gitignore` first). Check every model for brand badges.
 - [ ] **Logo.** No longer on the simulation HUD (scene title top-left instead). If it is wanted on the attract screen, use the master SVG; the wordmark is artwork, so don't retype it.
 - [ ] **Voice.** A teammate records about 20 s of speech, saved as `public/audio/voice.ogg` (CC0 or our own). The WebAudio placeholder is used until then.

@@ -34,4 +34,5 @@ if (sc && SCENARIOS[sc]) {
   if (q.get('vision')) { useUi.setState({ vision: true }); visionK.v = 1; }
   if (q.get('app')) useUi.setState({ phoneUp: true, app: q.get('app') === 'home' ? null : Number(q.get('app')) });
   if (q.get('pause')) (window as any).__infinetPaused = true;
+  if (q.get('cam')) (window as any).__infinetCam = q.get('cam')!.split(',').map(Number);
 }

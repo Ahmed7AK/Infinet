@@ -133,11 +133,46 @@ function SkyAndSun() {
     L.target.updateMatrixWorld();
   });
   return (
+    <>
+      <directionalLight
+        ref={sun} castShadow intensity={2.5}
+        shadow-mapSize={[4096, 4096]} shadow-bias={-0.0002} shadow-normalBias={0.03} shadow-radius={2.5}
+        shadow-camera-left={-45} shadow-camera-right={45} shadow-camera-top={45} shadow-camera-bottom={-45}
+        shadow-camera-near={1} shadow-camera-far={420}
+      />
+      <CeilingLight />
+    </>
+  );
+}
+
+/**
+ * Indoors the sun only reaches the façade strip, and image-based light has no occlusion, so desks, chairs and
+ * people would float. A warm overhead light (≈ 4000 K, the colour of office LED panels) fades in under a roof and
+ * casts the soft shadows a grid of ceiling panels gives. It sits just under the ceiling, so the shadow-casting
+ * slab above (which keeps the sun out) is behind its shadow camera and does not block it.
+ */
+const CEIL_TILT = new THREE.Vector3(0.22, 1, 0.12).normalize();
+function CeilingLight() {
+  const L = useRef<THREE.DirectionalLight>(null);
+  const k = useRef(0);
+  useFrame((_, dt) => {
+    const l = L.current;
+    if (!l) return;
+    const [px, py] = driver.snap.player.pos;
+    const inside = driver.snap.zone !== 'desert' && ROOFED.some((b) => pointInPoly([px, py], b.poly as Vec2[]));
+    k.current += ((inside ? 1 : 0) - k.current) * (1 - Math.exp(-dt * 3));
+    l.intensity = 1.9 * EXPOSURE * k.current * (1 - 0.6 * visionK.v);
+    const h = 2.9;
+    l.target.position.set(px, 0, -py);
+    l.position.set(px + (CEIL_TILT.x / CEIL_TILT.y) * h, h, -py + (CEIL_TILT.z / CEIL_TILT.y) * h);
+    l.target.updateMatrixWorld();
+  });
+  return (
     <directionalLight
-      ref={sun} castShadow intensity={2.5}
-      shadow-mapSize={[2048, 2048]} shadow-bias={-0.0003} shadow-normalBias={0.04}
-      shadow-camera-left={-45} shadow-camera-right={45} shadow-camera-top={45} shadow-camera-bottom={-45}
-      shadow-camera-near={1} shadow-camera-far={420}
+      ref={L} castShadow intensity={0} color="#fff1e4"
+      shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-normalBias={0.02} shadow-radius={5}
+      shadow-camera-left={-14} shadow-camera-right={14} shadow-camera-top={14} shadow-camera-bottom={-14}
+      shadow-camera-near={0.05} shadow-camera-far={4}
     />
   );
 }
@@ -285,6 +320,9 @@ function CameraRig() {
     k.pos.lerp(want, a);
     k.look.lerp(look, a);
     camera.layers.enable(NET_LAYER);
+    // debug / recording hook (?cam=x,y,h,lookX,lookY,lookH in engine metres): a fixed camera for checking a spot
+    const dbg = (window as { __infinetCam?: number[] }).__infinetCam;
+    if (dbg) { k.pos.set(dbg[0], dbg[2], -dbg[1]); k.look.set(dbg[3], dbg[5], -dbg[4]); }
     camera.position.copy(k.pos);
     for (const o of camOccluders) {
       o.obj.visible = o.h !== undefined
@@ -318,7 +356,7 @@ export function World() {
   const key = useMemo(() => sc, [sc]);
   return (
     <Canvas
-      shadows
+      shadows={{ type: THREE.PCFShadowMap }}
       dpr={[1, 1.5]}
       gl={{ antialias: false, powerPreference: 'high-performance', stencil: false }}
       camera={{ fov: 52, near: 0.1, far: 6000, position: [0, 2, 5] }}
