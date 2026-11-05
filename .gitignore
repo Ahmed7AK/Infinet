@@ -6,3 +6,5 @@ assets-src/downloads
 shots/
 results/dev/
 results/cinematic/
+.vercel
+.env*
