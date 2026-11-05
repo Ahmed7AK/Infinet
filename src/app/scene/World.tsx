@@ -19,6 +19,7 @@ import { Zones } from './Zones';
 import { NetworkLayer } from '../network/NetworkLayer';
 import { pointInPoly } from '../../engine/world/layout';
 import { camOccluders, NET_LAYER, visionK } from './vision';
+import { SceneMounted } from '../ui/Loader';
 
 // ───────────── sky and sun per scenario (midday in the city, low golden sun at the desert site) ─────────────
 interface Sky { hdr: string; sunAzDeg: number; sun: number; env: number; fog: number; bg: number }
@@ -371,6 +372,7 @@ export function World() {
           <Zones />
           <NetworkLayer />
         </group>
+        <SceneMounted />
       </Suspense>
       <Post />
     </Canvas>

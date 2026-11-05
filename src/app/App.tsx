@@ -4,6 +4,7 @@ import { World } from './scene/World';
 import { LabelLayer } from './scene/labels';
 import { Hud, useStageScale } from './ui/Hud';
 import { APPS, LAB, Phone } from './phone/Phone';
+import { Loader } from './ui/Loader';
 
 const TRAVEL: Record<string, Playable> = { Digit1: 'building-exit', Digit2: 'cafe-twin', Digit4: 'desert-sat' };
 
@@ -79,6 +80,7 @@ export function App() {
         <Hud />
         <Phone />
       </div>
+      <Loader />
       <div className="fade" style={{ opacity: fading ? 1 : 0 }} />
     </>
   );

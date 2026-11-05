@@ -15,6 +15,7 @@
 | Booth hardening: offline, auto-reload on error / WebGL loss, F9 reset | Done · `npm run qa` 14/14 PASS (61 fps headless; 60 fps in every zone) |
 | Batch: 300 runs × 3 scenarios + property test | Done → `results/2026-11-04/SUMMARY.md` |
 | Screenshots (17 beats, Reality and Vision) | Done → `results/shots/` (old style-guide shots kept in `results/shots-styleguide/`) |
+| Hosting for feedback: public repo github.com/Ahmed7AK/Infinet, live at https://infinet-sim.vercel.app (redeploys on every push to main), first-load progress screen | Done |
 | Cinematic recorder | Done (`npm run cinematic`); full video not yet rendered |
 
 ## Batch headline (results/2026-11-04, 300 runs per scenario, simulated)

@@ -84,6 +84,8 @@ class Driver {
   private fpsT = 0;
   keys = new Set<string>();
   idleS = IDLE_TO_ATTRACT_S;
+  /** true until the first load has finished (ui/Loader.tsx): the clock waits so scripted scenes start on screen */
+  hold = true;
   /** camera yaw (radians, compass: 0 = north) so WASD follows the screen */
   cameraYaw = 0;
   /** mouse look (pointer lock): yaw offset and pitch the camera rig adds, and when the mouse last moved */
@@ -168,8 +170,14 @@ class Driver {
   }
 
   // ───────────── per frame ─────────────
+  /** the world is on screen: start the clock, and count idle time for attract mode from now */
+  release() {
+    this.hold = false;
+    this.lastInput = performance.now();
+  }
+
   tick(realDt: number) {
-    if ((globalThis as any).__infinetPaused) return;
+    if ((globalThis as any).__infinetPaused || this.hold) return;
     realDt = Math.min(realDt, 0.1);
     this.realT += realDt;
     this.frames++;
