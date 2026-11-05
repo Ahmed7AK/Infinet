@@ -1,7 +1,7 @@
 /**
  * The realistic world (plan §6, D3, D9). Every wall that affects radio comes from src/world/layout.json, at its
- * real height and material, so what you see is what the propagation model uses. Decorative props are the
- * Blender-built GLBs. Grounded realism, restrained palette (P9): the network layer is the only loud thing.
+ * real height and material, so what you see is what the propagation model uses. Furniture and street clutter are
+ * Poly Haven models (CC0); network hardware, cars, palms and lamps are the Blender-scripted GLBs. Grounded realism, restrained palette (P9): the network layer is the only loud thing.
  */
 import { useEffect, useMemo, type JSX } from 'react';
 import * as THREE from 'three';
@@ -16,8 +16,8 @@ const yawFromCompass = (deg: number) => (-deg * Math.PI) / 180; // +Z-forward mo
 /** rotation.y that turns a model whose forward is three +Z (south) toward compass heading `deg` */
 export const faceCompass = (deg: number) => ((180 - deg) * Math.PI) / 180;
 
-function Prop({ name, at, rotY = 0, scale = 1, tint, occluder }: { name: ModelName; at: [number, number, number]; rotY?: number; scale?: number; tint?: Record<string, string>; occluder?: { y: number; r: number; h?: number } }) {
-  const obj = useModel(name, { tint });
+function Prop({ name, at, rotY = 0, scale = 1, tint, occluder, part }: { name: ModelName; at: [number, number, number]; rotY?: number; scale?: number; tint?: Record<string, string>; occluder?: { y: number; r: number; h?: number }; part?: string }) {
+  const obj = useModel(name, { tint, part });
   useEffect(() => {
     if (!occluder) return;
     const e = { obj, x: at[0], y: at[1] + occluder.y * scale, z: at[2], r: occluder.r * scale, h: occluder.h === undefined ? undefined : occluder.h * scale };
@@ -121,7 +121,7 @@ function Buildings({ cutaway }: { cutaway: boolean }) {
         out.push(<mesh key={bd.id} position={[cx, H / 2, -cy]} geometry={boxGeo(sx, H, sy)} material={m} castShadow receiveShadow />);
         out.push(<mesh key={`${bd.id}-par`} position={[cx, H + 0.45, -cy]} geometry={boxGeo(sx + 0.3, 0.9, sy + 0.3)} material={m} castShadow />);
         out.push(<mesh key={`${bd.id}-roof`} position={[cx, H + 0.2, -cy]} geometry={boxGeo(sx - 0.4, 0.42, sy - 0.4)} material={MAT.concrete('#a9a59c')} receiveShadow />);
-        out.push(<mesh key={`${bd.id}-ac`} position={[cx + sx * 0.2, H + 1.0, -cy]} geometry={boxGeo(2.4, 1.2, 1.6)} material={MAT.frame()} castShadow />);
+        for (let k = 0; k < 3; k++) out.push(<Prop key={`${bd.id}-ac${k}`} name="ph_aircon" at={[cx + sx * 0.18 + k * 1.0, H + 0.41, -cy + 2]} />);
         out.push(<Windows key={`${bd.id}-win`} b={b} fromZ={0} toZ={H} />);
         out.push(<mesh key={`${bd.id}-shop`} position={[cx, 1.8, -cy]} geometry={boxGeo(sx + 0.06, 2.8, sy + 0.06)} material={MAT.windowDark()} />);
       }
@@ -218,6 +218,9 @@ function StreetProps() {
       ))}
       {[[5, -112], [5, -90], [27, -60], [27, -138]].map(([x, y], i) => <Prop key={`b${i}`} name="bench" at={[x, 0.12, -y]} rotY={x < 16 ? -Math.PI / 2 : Math.PI / 2} />)}
       {[-118, -121, -141, -144].map((y, i) => <Prop key={`bo${i}`} name="bollard" at={[7.4, 0.12, -y]} />)}
+      {[[7.4, -50], [24.6, -95], [7.4, 8]].map(([x, y], i) => <Prop key={`hy${i}`} name="ph_hydrant" at={[x, 0.12, -y]} rotY={faceCompass(x < 16 ? 270 : 90)} />)}
+      {[[2.4, -78], [29.6, -30], [2.4, -152]].map(([x, y], i) => <Prop key={`ub${i}`} name="ph_utility_box" at={[x, 0.12, -y]} rotY={faceCompass(x < 16 ? 90 : 270)} />)}
+      {[[16, -45], [13, -112], [19, -5], [14, -168]].map(([x, y], i) => <Prop key={`mh${i}`} name="ph_manhole" at={[x, 0.002, -y]} rotY={i} />)}
     </>
   );
 }
@@ -230,7 +233,17 @@ function Office() {
       <Prop name="rack_42u" at={[(P.rack as Vec2)[0], 0.015, -(P.rack as Vec2)[1]]} rotY={Math.PI / 2} />
       <mesh position={[(P.reception as Vec2)[0], 0.55, -(P.reception as Vec2)[1]]} geometry={boxGeo(1.0, 1.1, 3.2)} material={MAT.wood()} castShadow receiveShadow />
       <Prop name="meeting_table" at={[-24, 0.015, -20]} />
-      {[[-2, 2], [-2, 23], [-38, 23], [-20, 12]].map(([x, y], i) => <Prop key={`pl${i}`} name="plant_pot" at={[x, 0.015, -y]} />)}
+      {/* plants (Poly Haven) by the door, in the corners and by the core */}
+      {([[-7.3, 0.7, 'ph_plant_tall'], [-2, 23.2, 'ph_plant_wide'], [-38.6, 23.4, 'ph_plant_tall'], [-15.3, 9.6, 'ph_plant_wide'], [-0.7, 9.8, 'ph_plant_tall'], [-0.7, 15.2, 'ph_plant_tall']] as const).map(([x, y, n], i) => (
+        <Prop key={`pl${i}`} name={n} at={[x, 0.015, -y]} rotY={i * 1.7} />
+      ))}
+      {/* a waiting corner in the south-east nook */}
+      <Prop name="ph_sofa" at={[-4.2, 0.015, -0.75]} rotY={faceCompass(0)} />
+      <Prop name="ph_coffee_table" at={[-4.2, 0.015, -2.2]} rotY={Math.PI / 2} />
+      <Prop name="ph_armchair" at={[-1.6, 0.015, -2.3]} rotY={faceCompass(270)} />
+      {/* storage along the west wall and a low cabinet on the north glass */}
+      {[9.5, 11.0].map((y, i) => <Prop key={`sh${i}`} name="ph_shelves" at={[-39.6, 0.015, -y]} rotY={faceCompass(90)} />)}
+      <Prop name="ph_cabinet" at={[-12, 0.015, -24.65]} />
       {LAYOUT.transmitters.filter((t) => t.net === 'office-corp').map((t) => <Prop key={t.id} name="ap_ceiling" at={[t.pos[0], 3.0, -t.pos[1]]} />)}
     </>
   );
@@ -239,16 +252,23 @@ function Office() {
 function Cafe() {
   const ap = LAYOUT.transmitters.find((t) => t.id === 'ap-cafe')!;
   const [ax, ay] = P.attackerSeat as Vec2;
+  const vision = useUi((st) => st.vision);
   return (
     <>
+      {/* pendant lamps over the counter (hang from the 3.2 m ceiling; hidden with it in Network Vision) */}
+      {!vision && [125.9, 127, 128.1].map((y, i) => <Prop key={`pd${i}`} name="ph_pendant" at={[-18.5, 3.2 - 0.95, y]} />)}
       <Prop name="cafe_counter" at={[-18.5, 0.015, 127]} rotY={-Math.PI / 2} />
-      {(P.cafeTables as Vec2[]).map(([x, y], i) => <Prop key={`t${i}`} name="cafe_table" at={[x, x > 1 ? 0.12 : 0.015, -y]} rotY={0} />)}
+      <Prop name="ph_vase" at={[-18.5, 1.08, 125.75]} />
+      {[126.2, 127.8].map((y, i) => <Prop key={`st${i}`} name="ph_stool" at={[-17.45, 0.015, y]} rotY={i * 0.6} />)}
+      {/* bistro sets (table + two chairs, the chairs south and north of the table) */}
+      {(P.cafeTables as Vec2[]).map(([x, y], i) => <Prop key={`t${i}`} name="ph_bistro_set" at={[x, x > 1 ? 0.12 : 0.015, -y]} rotY={0} />)}
+      {[[2.6, -123.2], [2.6, -136.8]].map(([x, y], i) => <Prop key={`pb${i}`} name="ph_planter" at={[x, 0.12, -y]} rotY={faceCompass(90)} />)}
       {/* the café's own router, on a column by the counter */}
       <mesh position={[ap.pos[0] + 0.2, 1.6, -ap.pos[1]]} geometry={boxGeo(0.3, 3.2, 0.3)} material={MAT.paint('#e8e2d6')} castShadow />
       <Prop name="ap_cafe" at={[ap.pos[0], ap.pos[2], -ap.pos[1]]} rotY={-Math.PI / 2} />
       {/* the customer at the corner table: a laptop and a small USB adapter, like everyone else */}
-      <Prop name="laptop" at={[ax, 0.745, -(ay - 0.2)]} />
-      <Prop name="adapter_usb" at={[ax + 0.22, 0.745, -(ay - 0.12)]} />
+      <Prop name="laptop" at={[ax, 0.735, -(ay - 0.2)]} />
+      <Prop name="adapter_usb" at={[ax + 0.22, 0.735, -(ay - 0.12)]} />
     </>
   );
 }
@@ -315,7 +335,7 @@ function Terrain() {
     for (let i = 0; i < 70; i++) {
       const a = rnd() * Math.PI * 2, d = 60 + rnd() * 500;
       const x = SITE[0] + Math.cos(a) * d, y = SITE[1] + Math.sin(a) * d;
-      out.push({ p: [x, desertHeight(x, y) - 0.2, -y], s: 0.4 + rnd() * 2.2, r: rnd() * 6 });
+      out.push({ p: [x, desertHeight(x, y) - 0.1, -y], s: 0.4 + rnd() * 2.2, r: rnd() * 6 });
     }
     return out;
   }, []);
@@ -323,7 +343,7 @@ function Terrain() {
     <>
       <mesh geometry={geo} material={MAT.sand()} receiveShadow />
       <mesh geometry={ridge}><meshStandardMaterial color="#8a6a52" roughness={1} /></mesh>
-      {rocks.map((r, i) => <Prop key={i} name="rock" at={r.p} rotY={r.r} scale={r.s} />)}
+      {rocks.map((r, i) => <Prop key={i} name="ph_rocks" part={`piece_${i % 4}`} at={r.p} rotY={r.r} scale={r.s * 5} />)}
     </>
   );
 }
@@ -365,6 +385,14 @@ function DesertSite() {
       <mesh position={[12000, 0.08, 0]} geometry={boxGeo(44, 0.16, 44)} material={MAT.concrete('#bfb5a4')} receiveShadow />
       <Prop name="container_office" at={[12000.03, 0.16, 0]} />
       <Prop name="generator" at={[gx, 0.16, -gy]} rotY={0.2} />
+      {/* site clutter (Poly Haven): fuel, the power cabinet, the AC unit, spares, and a barrier line at the gate */}
+      {[[gx + 1.6, gy - 1.3], [gx + 2.0, gy - 1.35]].map(([x, y], i) => <Prop key={`jc${i}`} name="ph_jerrycan" at={[x, 0.16, -y]} rotY={0.3 + i * 0.4} />)}
+      <Prop name="ph_power_cabinet" at={[gx - 1.7, 0.16, -(gy + 2.2)]} rotY={faceCompass(90)} />
+      <Prop name="ph_aircon" at={[12001.5, 0.16, 1.22 + 0.21]} />
+      <Prop name="ph_crate" at={[11996.3, 0.16, -2.0]} rotY={0.1} />
+      <Prop name="ph_crate" at={[11995.3, 0.16, -2.3]} rotY={-0.25} />
+      <Prop name="ph_box" at={[11996.3, 0.51, -2.0]} rotY={0.5} />
+      {[-5.2, -3.6, -2.0].map((y, i) => <Prop key={`br${i}`} name="ph_barrier" at={[11977.5, 0, -y]} rotY={Math.PI / 2} />)}
       <mesh position={[lx, (lz - 0.6) / 2, -ly]} geometry={boxGeo(0.08, lz - 0.6, 0.08)} material={MAT.frame()} castShadow />
       <Prop name="leo_terminal" at={[lx, lz - 0.6, -ly]} />
       <primitive object={dish} position={[dx, 0.16, -dy]} />

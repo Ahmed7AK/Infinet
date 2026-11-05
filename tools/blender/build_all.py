@@ -462,22 +462,6 @@ def meeting_table():
 
 
 @asset
-def cafe_table():
-    m = M()
-    root = empty('cafe_table')
-    MB().cyl((0, 0, 0.72), 0.36, 0.36, 0.025, n=32).build('Top', mat('Marble', (0.86, 0.85, 0.82), 0.25), root)
-    MB().cyl((0, 0, 0.0), 0.24, 0.2, 0.025, n=24).cyl((0, 0, 0.02), 0.03, 0.03, 0.7, n=10).build('Pedestal', m['darksteel'], root)
-    for k, a in enumerate((0, pi)):
-        ch = empty(f'Chair_{k}', (0.62 * sin(a), -0.62 * cos(a), 0), root, (0, 0, a))
-        legs = MB()
-        for (x, y) in ((-0.19, -0.19), (0.19, -0.19), (-0.19, 0.19), (0.19, 0.19)):
-            legs.cyl((x, y, 0), 0.012, 0.012, 0.45, n=6)
-        legs.box((0, -0.2, 0.62), (0.42, 0.02, 0.34)).cyl((-0.19, -0.2, 0.45), 0.012, 0.012, 0.42, n=6).cyl((0.19, -0.2, 0.45), 0.012, 0.012, 0.42, n=6)
-        legs.build(f'Frame_{k}', m['darksteel'], ch)
-        MB().box((0, 0, 0.46), (0.44, 0.44, 0.03)).build(f'Seat_{k}', mat('Walnut', (0.35, 0.22, 0.13), 0.5), ch, bevel=0.005)
-
-
-@asset
 def cafe_counter():
     m = M()
     root = empty('cafe_counter')  # customers at -Y
@@ -488,19 +472,6 @@ def cafe_counter():
     MB().box((0.8, -0.14, 1.2), (0.6, 0.02, 0.06)).build('GroupHeads', m['black'], root)
     MB().box((-0.6, 0, 1.25), (0.9, 0.6, 0.35)).build('PastryCase', mat('CaseGlass', (0.6, 0.7, 0.75), 0.05, 0, alpha=0.3), root)
     MB().box((-1.3, 0.05, 1.12), (0.3, 0.3, 0.1)).box((-1.3, 0.12, 1.25), (0.28, 0.04, 0.2)).build('Till', m['black'], root, bevel=0.005)
-
-
-@asset
-def plant_pot():
-    root = empty('plant_pot')
-    MB().cyl((0, 0, 0), 0.2, 0.25, 0.45, n=20).build('Pot', mat('PotGrey', (0.3, 0.3, 0.3), 0.7), root)
-    leaves = MB()
-    import random
-    rnd = random.Random(3)
-    for i in range(28):
-        a = rnd.uniform(0, 2 * pi); h = rnd.uniform(0.6, 1.25); r = rnd.uniform(0.05, 0.3)
-        leaves.tube([(0, 0, 0.4), (r * cos(a) * 0.5, r * sin(a) * 0.5, h * 0.7), (r * cos(a), r * sin(a), h)], [0.01, 0.05, 0.005], n=5, sy=0.15)
-    leaves.build('Leaves', mat('LeafGreen', (0.08, 0.2, 0.07), 0.6, double=True), root)
 
 
 # ───────────────────────── street ─────────────────────────
@@ -644,53 +615,7 @@ def generator():
     MB().cyl((0.8, 0.3, 1.25), 0.06, 0.06, 0.7, n=10).build('Exhaust', mat('Rust', (0.3, 0.17, 0.1), 0.8, 0.4), root)
 
 
-@asset
-def rock():
-    import random
-    rnd = random.Random(11)
-    root = empty('rock')
-    b = MB(); b.sphere((0, 0, 0.3), 1.0, n=10, m=7, sz=0.6)
-    for i, v in enumerate(b.v):
-        k = 0.75 + 0.45 * rnd.random()
-        b.v[i] = (v[0] * k, v[1] * k, max(0, v[2] * (0.8 + 0.4 * rnd.random())))
-    b.smooth = [False] * len(b.smooth)
-    b.build('Rock', mat('RockTan', (0.48, 0.36, 0.26), 0.9), root)
-
-
-# ───────────────────────── people ─────────────────────────
-@asset
-def mannequin():
-    """Placeholder for the Mixamo character (PROGRESS.md). Rigid parts under named joint nodes, animated in code."""
-    shirt = mat('Shirt', (0.6, 0.66, 0.74), 0.8)
-    trousers = mat('Trousers', (0.11, 0.12, 0.16), 0.85)
-    shoes = mat('Shoes', (0.1, 0.07, 0.05), 0.5)
-    skin = mat('Skin', (0.62, 0.5, 0.42), 0.55)
-    hair = mat('Hair', (0.06, 0.045, 0.035), 0.7)
-    root = empty('mannequin')
-    hips = empty('Hips', (0, 0, 0.95), root)
-    MB().tube([(0, 0, -0.06), (0, 0, 0.05), (0, 0, 0.1)], [0.15, 0.165, 0.15], n=14, sy=0.62).build('Pelvis', trousers, hips)
-    spine = empty('Spine', (0, 0, 0.08), hips)
-    MB().tube([(0, 0, 0.0), (0, 0, 0.18), (0, 0, 0.36), (0, 0, 0.46)], [0.145, 0.16, 0.19, 0.12], n=16, sy=0.6).build('Torso', shirt, spine)
-    neck = empty('Neck', (0, 0, 0.47), spine)
-    MB().cyl((0, 0, -0.02), 0.05, 0.048, 0.09, n=10).build('NeckMesh', skin, neck)
-    head = empty('Head', (0, 0, 0.08), neck)
-    MB().sphere((0, -0.01, 0.11), 0.105, n=18, m=12, sx=0.9, sy=1.05, sz=1.15).build('HeadMesh', skin, head)
-    MB().sphere((0, 0.012, 0.15), 0.108, n=18, m=12, sx=0.93, sy=1.05, sz=1.0).build('HairMesh', hair, head)
-    for side, sx in (('L', 1), ('R', -1)):
-        th = empty(f'Thigh_{side}', (0.095 * sx, 0, -0.03), hips)
-        MB().tube([(0, 0, 0), (0, 0, -0.2), (0, 0, -0.43)], [0.085, 0.075, 0.058], n=12).build(f'ThighMesh_{side}', trousers, th)
-        sh = empty(f'Shin_{side}', (0, 0, -0.43), th)
-        MB().tube([(0, 0, 0), (0, 0, -0.2), (0, 0, -0.4)], [0.057, 0.05, 0.042], n=12).build(f'ShinMesh_{side}', trousers, sh)
-        ft = empty(f'Foot_{side}', (0, 0, -0.42), sh)
-        MB().tube([(0, 0.05, -0.04), (0, -0.05, -0.05), (0, -0.16, -0.06)], [0.045, 0.048, 0.04], n=10, sy=0.6).build(f'Shoe_{side}', shoes, ft)
-        ua = empty(f'UpperArm_{side}', (0.2 * sx, 0, 0.43), spine)
-        MB().tube([(0, 0, 0), (0, 0, -0.14), (0, 0, -0.29)], [0.055, 0.05, 0.042], n=10).build(f'UpperArmMesh_{side}', shirt, ua)
-        la = empty(f'LowerArm_{side}', (0, 0, -0.29), ua)
-        MB().tube([(0, 0, 0), (0, 0, -0.13), (0, 0, -0.25)], [0.038, 0.034, 0.03], n=10).build(f'LowerArmMesh_{side}', skin, la)
-        hd = empty(f'Hand_{side}', (0, 0, -0.25), la)
-        MB().sphere((0, 0, -0.07), 0.05, n=10, m=7, sx=0.55, sy=0.95, sz=1.4).build(f'HandMesh_{side}', skin, hd)
-
-
+# (the café tables, plants, rocks and the placeholder mannequin are now Poly Haven / Rocketbox: see import_polyhaven.py, import_rocketbox.py)
 # ───────────────────────── run ─────────────────────────
 for name, fn in ASSETS.items():
     if ONLY and name not in ONLY:

@@ -34,8 +34,10 @@
 
 ## TODO (needs a person or an asset)
 
-- [ ] **Character (Mixamo).** Replace the Blender placeholder mannequin (`public/models/mannequin.glb`, posed in code in `src/app/scene/Character.tsx`) with one rigged Mixamo character and these clips, exported as one GLB (`public/models/character.glb`): idle · walk · run · texting / looking at phone · talking on phone · sitting idle · sitting typing. Mixamo needs an Adobe login, so a person has to download them; check the licence terms allow the booth use and record it in CREDITS.md. Then swap `useModel('mannequin')` for an `AnimationMixer` driven by speed and pose.
-- [ ] Optional: BlendKit or Poly Haven models for hero props (car, café furniture) if the Blender props read too simple on the booth screen. CC0 / CC-BY only, recorded in CREDITS.md.
+- [x] **People.** Done with Microsoft Rocketbox (MIT, no login) instead of Mixamo: 14 rigged people and 17 clips (idle, look around, talk, texting, phone call, sitting at a chair, sitting at a table, walk, run). The Blender mannequin is gone.
+- [ ] Optional: a typing-at-a-keyboard clip (Rocketbox has none; the office workers use "sitting at a table"). Mixamo's "Typing" is the fallback; it needs an Adobe login and its licence recorded in CREDITS.md.
+- [x] Poly Haven furniture and street clutter (22 CC0 models: bistro sets, plants, sofa, shelves, hydrants, utility boxes, AC units, barriers, rocks …).
+- [ ] Optional: Sketchfab CC-BY models for what Poly Haven lacks (cars, date palms, office chairs, monitors). Needs a Sketchfab account and API token in `.env.local` (add it to `.gitignore` first). Check every model for brand badges.
 - [ ] **Logo.** No longer on the simulation HUD (scene title top-left instead). If it is wanted on the attract screen, use the master SVG; the wordmark is artwork, so don't retype it.
 - [ ] **Voice.** A teammate records about 20 s of speech, saved as `public/audio/voice.ogg` (CC0 or our own). The WebAudio placeholder is used until then.
 - [ ] Render the full backup video (`npm run cinematic`, about 15 min) and copy it to the booth laptop.
@@ -61,5 +63,6 @@
 
 - The HUD publishes at 10 Hz, so the timeline can lag the panels by up to 100 ms.
 - The minimap repaints its 240 m belief map each time you move 20 m (about 15k map samples, a few ms).
-- The figure is a placeholder mannequin with rigid limbs; see the Mixamo TODO above.
+- Rocketbox people are 2020 game-quality characters: fine at play distance, plain close up. Hair cards get a little self-illumination so they don't go black under AO.
+- There is no female phone-call clip in Rocketbox; only the (male) player and NPCs who text use the phone.
 - three.js logs "PCFSoftShadowMap has been removed" (it falls back to PCF) and a deprecation for `THREE.Clock` from R3F; both are harmless.

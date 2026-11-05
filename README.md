@@ -60,7 +60,11 @@ npm run cinematic                        # deterministic backup video → result
 
 - Batch results are in `results/<date>/SUMMARY.md`: mean, median, p95 and bootstrap 95 % CI per scenario and policy, plus charts and the property test.
 - URL hooks for recording: `?scene=cafe-twin&t=25&vision=1&view=truth&app=4&baseline=b2&stale=0.6&pause=1`.
-- Assets: `npx tsx tools/assets/fetch-polyhaven.ts` (CC0 skies and textures) and `/Applications/Blender.app/Contents/MacOS/Blender -b -P tools/blender/build_all.py` (props → `public/models`).
+- Assets (raw downloads go to `assets-src/downloads/`, not shipped):
+  - `npx tsx tools/assets/fetch-polyhaven.ts` (CC0 skies, textures and models), then `Blender -b -P tools/blender/import_polyhaven.py` (models → `public/models/ph_*.glb`)
+  - `npx tsx tools/assets/fetch-rocketbox.ts` (MIT people and clips), then `Blender -b -P tools/blender/import_rocketbox.py` (→ `public/models/people/`)
+  - `Blender -b -P tools/blender/build_all.py` (scripted hardware and street props → `public/models`)
+  - `Blender` is `/Applications/Blender.app/Contents/MacOS/Blender`.
 
 ## Where things are
 

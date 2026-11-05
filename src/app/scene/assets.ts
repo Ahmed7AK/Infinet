@@ -1,6 +1,7 @@
 /**
- * Shared assets for the realistic world (plan §11–§12): Poly Haven PBR textures (CC0), PBR materials,
- * and the Blender-built GLB props in public/models (tools/blender/build_all.py). All local, no network.
+ * Shared assets for the realistic world (plan §11–§12): Poly Haven PBR textures (CC0), PBR materials, and the GLB
+ * props in public/models: Poly Haven models (ph_*, CC0, tools/blender/import_polyhaven.py) and the Blender-scripted
+ * network hardware and street pieces (tools/blender/build_all.py). People are in Character.tsx. All local, no network.
  */
 import { useGLTF } from '@react-three/drei';
 import { useMemo } from 'react';
@@ -88,20 +89,30 @@ export function floorGeo(poly: Array<[number, number]>, y = 0): THREE.BufferGeom
 
 // ───────────── GLB props ─────────────
 export const MODELS = [
+  // Blender-scripted (generic network hardware: no real product or brand)
   'ap_ceiling', 'ap_cafe', 'adapter_usb', 'laptop', 'phone_hand', 'rack_42u', 'tower_monopole', 'vsat_geo', 'leo_terminal',
-  'site_router', 'sat_leo', 'sat_geo', 'gateway_cluster', 'desk_set', 'meeting_table', 'cafe_table', 'cafe_counter', 'plant_pot',
-  'car_sedan', 'palm', 'street_lamp', 'bollard', 'bench', 'container_office', 'generator', 'rock', 'mannequin',
+  'site_router', 'sat_leo', 'sat_geo', 'gateway_cluster', 'desk_set', 'meeting_table', 'cafe_counter',
+  'car_sedan', 'palm', 'street_lamp', 'bollard', 'bench', 'container_office', 'generator',
+  // Poly Haven (CC0)
+  'ph_bistro_set', 'ph_stool', 'ph_pendant', 'ph_vase', 'ph_planter', 'ph_plant_tall', 'ph_plant_wide', 'ph_sofa',
+  'ph_coffee_table', 'ph_armchair', 'ph_shelves', 'ph_cabinet', 'ph_hydrant', 'ph_utility_box', 'ph_manhole', 'ph_aircon',
+  'ph_barrier', 'ph_jerrycan', 'ph_crate', 'ph_box', 'ph_power_cabinet', 'ph_rocks',
 ] as const;
 export type ModelName = (typeof MODELS)[number];
 export const modelUrl = (n: ModelName) => `/models/${n}.glb`;
 for (const n of MODELS) useGLTF.preload(modelUrl(n));
 
-/** a shadow-casting clone of a GLB scene; `tint` recolours a named material (e.g. car paint) */
-export function useModel(name: ModelName, opts: { tint?: Record<string, string>; shadows?: boolean } = {}): THREE.Object3D {
+/**
+ * a shadow-casting clone of a GLB scene; `tint` recolours a named material (e.g. car paint);
+ * `part` takes one named top-level node of a set (ph_rocks: piece_0 … piece_3)
+ */
+export function useModel(name: ModelName, opts: { tint?: Record<string, string>; shadows?: boolean; part?: string } = {}): THREE.Object3D {
   const { scene } = useGLTF(modelUrl(name));
-  const key = JSON.stringify(opts.tint ?? {});
+  const key = JSON.stringify(opts.tint ?? {}) + (opts.part ?? '');
   return useMemo(() => {
-    const c = scene.clone(true);
+    const src = opts.part ? scene.getObjectByName(opts.part) ?? scene : scene;
+    const c = src.clone(true);
+    if (opts.part) c.position.set(0, 0, 0);
     c.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
