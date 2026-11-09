@@ -17,6 +17,7 @@ import { CROSSING } from './crowd';
 import { screenMaterials, screenUVs } from './screens';
 import { ParkedCars, ROAD_VIS, Traffic } from './Traffic';
 import { camOccluders } from './vision';
+import { Hall } from './Hall';
 
 const P = LAYOUT.props;
 const yawFromCompass = (deg: number) => (-deg * Math.PI) / 180; // +Z-forward models facing compass `deg` need π offset (see `faceCompass`)
@@ -43,7 +44,7 @@ function Walls() {
     };
     const out: JSX.Element[] = [];
     LAYOUT.walls.forEach((w, i) => {
-      if (w.door || w.zone === 'desert') return;
+      if (w.door || w.zone === 'desert' || w.zone === 'hall') return;
       const dx = w.b[0] - w.a[0], dy = w.b[1] - w.a[1];
       const len = Math.hypot(dx, dy);
       const isGlass = w.material.includes('glass');
@@ -489,7 +490,7 @@ function Cafe() {
 function Towers() {
   return (
     <>
-      {LAYOUT.transmitters.filter((t) => t.kind === 'cell').map((t) => (
+      {LAYOUT.transmitters.filter((t) => t.kind === 'cell' && !t.zone).map((t) => (
         <Prop key={t.id} name="tower_monopole" at={[t.pos[0], 0, -t.pos[1]]} rotY={yawFromCompass(t.sectors?.[0].azDeg ?? 0)} scale={t.pos[2] / 30} />
       ))}
     </>
@@ -691,6 +692,7 @@ export function Zones() {
   const zone = useUi((s) => s.snap?.zone ?? 'office');
   const vision = useUi((s) => s.vision);
   if (zone === 'desert') return (<><DesertSite /><Towers /><People zone="desert" /></>);
+  if (zone === 'hall') return (<><Hall /><People zone="hall" /></>);
   return (
     <>
       <Street />

@@ -52,7 +52,21 @@ export const NET_LABEL: Record<string, string> = {
   flood: 'Fake beacon (flood)',
   'cell-a': '5G',
   'cell-b': '5G (Cellular B)',
+  'venue-free': 'Venue Wi-Fi',
 };
+
+/**
+ * What the screen calls the mobile network: '5G' in the city and the desert; '4G' in a zone whose mobile site is
+ * marked LTE (the venue hall: both survey phones were on LTE band 3 at every point, 9 Nov). Set per sim; words only,
+ * the radio model and the results don't change.
+ */
+let MOBILE = '5G';
+export const mobileWord = () => MOBILE;
+export function setMobileWord(w: string) {
+  MOBILE = w;
+  NET_LABEL['cell-a'] = w;
+  NET_LABEL['cell-b'] = `${w} (Cellular B)`;
+}
 
 export const netOf = (pathId: string) => pathId.split(':')[1];
 /** networks that are an attacker's (truth only: the batch metrics count them; the phone never reads this) */

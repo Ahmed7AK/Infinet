@@ -104,6 +104,8 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 .caption { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); max-width: 780px; padding: 12px 18px; font: 500 19px/1.4 var(--sans); text-align: center; }
 .banner { position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); font: 500 14px/1 var(--sans); color: var(--mute); padding: 8px 12px; white-space: nowrap; }
 .banner b { color: var(--text); font-weight: 600; }
+/* a caption (up to three lines) takes the banner's place while it shows */
+.caption ~ .banner { display: none; }
 .attract { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); padding: 18px 28px; font: 600 26px/1.2 var(--sans); }
 
 /* ───── phone (bottom-right; peeks when lowered) ───── */
@@ -116,6 +118,16 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 .phone .status .r { display: flex; gap: 6px; align-items: center; color: var(--mute); font: 500 13px/1 var(--mono); }
 .phone .status .shieldpill { font-size: 12px; padding: 4px 7px; }
 .phone .peek { display: flex; justify-content: space-between; align-items: center; padding: 4px 22px 10px; font: 500 15px/1.2 var(--sans); color: var(--mute); }
+/* sign-in offer (a Wi-Fi with a sign-in page): above the lowered phone, or at the top of the raised one */
+.signin { position: absolute; right: 32px; bottom: 127px; width: 351px; padding: 14px 16px; pointer-events: auto; animation: notein 260ms ease-out; }
+.signin.in { position: static; width: auto; margin: 0 0 12px; padding: 12px 14px; border-radius: 16px; background: rgba(103, 232, 249, 0.07); border: 1px solid rgba(103, 232, 249, 0.35); }
+.signin .t { display: flex; gap: 10px; align-items: center; font: 500 16px/1.25 var(--sans); }
+.signin .t b { font-weight: 700; }
+.signin .ic { flex: none; width: 20px; height: 20px; color: var(--check); }
+.signin .d { font: 400 14px/1.35 var(--sans); color: var(--mute); margin: 6px 0 10px; }
+.signin .btn { display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 10px; border: 0; cursor: pointer; background: var(--tunnel); color: #071016; font: 700 15px/1 var(--sans); }
+.signin .btn:hover { filter: brightness(1.1); }
+.signin .btn kbd { font: 600 12px/1 var(--mono); padding: 3px 6px; border-radius: 5px; background: rgba(0, 0, 0, 0.18); }
 .phone .peek .badge2 { background: var(--threat); color: #111; font: 700 13px/1 var(--mono); border-radius: 999px; padding: 3px 8px; }
 .phone .body { flex: 1; overflow: hidden; padding: 6px 16px 8px; display: flex; flex-direction: column; gap: 10px; }
 .phone h4 { margin: 2px 2px 0; font: 600 22px/1.2 var(--sans); }
@@ -139,6 +151,7 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 .net .l1 { display: flex; justify-content: space-between; align-items: center; font: 600 16px/1.2 var(--sans); }
 .net .l2 { display: flex; justify-content: space-between; font: 400 13px/1.3 var(--mono); color: var(--mute); margin-top: 4px; }
 .net .fl { font: 400 13px/1.3 var(--sans); color: var(--threat); margin-top: 3px; }
+.net.anon .l1 { font-weight: 500; color: #C4CAD6; } .net.anon .l1 .sub { font: 400 12px/1 var(--sans); color: var(--mute); }
 .stages { display: flex; gap: 4px; justify-content: space-between; }
 .stages span { flex: 1; text-align: center; font: 500 12px/1 var(--sans); color: var(--dim); padding: 6px 0; border-radius: 999px; border: 1px solid rgba(255,255,255,0.08); }
 .stages span.done { color: var(--mute); border-color: rgba(103, 232, 249, 0.25); }
@@ -177,6 +190,11 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 .ntag.live { border-color: rgba(251, 191, 36, 0.55); } .ntag.live .livetag { margin-left: 0; }
 .adot { width: 9px; height: 9px; border-radius: 50%; background: #8A93A6; opacity: 0.75; box-shadow: 0 0 0 3px rgba(138, 147, 166, 0.18); }
 .adot.flood { background: #F87171; opacity: 0.8; box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.22); }
+.adot.dev { border-radius: 2px; }   /* a fixed device: square; a phone hotspot: round */
+/* the nearest measured networks in the hall: what they are, never their name (grey, quieter than a named tag) */
+.atag { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; padding: 3px 8px; border-radius: 7px; background: rgba(10, 12, 16, 0.6); border: 1px dashed rgba(138, 147, 166, 0.45); font: 500 13px/1.2 var(--sans); color: #C4CAD6; }
+.atag .adot { flex: none; opacity: 0.9; }
+.atag .d { font: 400 12px/1.2 var(--mono); color: var(--mute); }
 .simtag.live { color: var(--check); border-color: rgba(251, 191, 36, 0.5); margin-top: 6px; }
 .ntag .n { font-weight: 600; }
 .ntag .d { font: 400 13px/1.2 var(--mono); color: var(--mute); }
@@ -194,3 +212,7 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 .edgetag b { font-family: var(--mono); }
 .youtag { padding: 4px 9px; border-radius: 999px; background: rgba(10, 12, 16, 0.7); border: 1px solid rgba(103, 232, 249, 0.5); font: 500 14px/1.2 var(--sans); white-space: nowrap; }
 .youtag.bad { border-color: rgba(248, 113, 113, 0.7); color: var(--threat); }
+/* the venue hall: area names (Vision), our stand (always), our survey points (Vision) */
+.zlabel { padding: 3px 9px; border-radius: 6px; background: rgba(10, 12, 16, 0.55); border: 1px solid rgba(242, 244, 247, 0.18); color: rgba(242, 244, 247, 0.85); font: 600 13px/1.2 var(--sans); letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.zlabel.ours { background: rgba(8, 18, 26, 0.82); border-color: rgba(103, 232, 249, 0.7); color: #fff; font-size: 15px; text-transform: none; letter-spacing: 0; box-shadow: 0 0 16px rgba(103, 232, 249, 0.25); }
+.smark { padding: 2px 7px; border-radius: 999px; background: rgba(10, 12, 16, 0.6); border: 1px dashed rgba(103, 232, 249, 0.55); color: rgba(242, 244, 247, 0.8); font: 500 12px/1.2 var(--mono); white-space: nowrap; }

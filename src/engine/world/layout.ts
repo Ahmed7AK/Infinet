@@ -15,6 +15,20 @@ export interface Transmitter {
   captivePortal?: boolean; airtimeLoad?: boolean; attacker?: boolean; startsOff?: boolean;
   uplinks?: Array<{ type: 'LEO' | 'GEO'; primary?: boolean }>;
   operator?: string; fcGHz?: number; model?: 'UMa' | 'UMi' | 'RMa'; sectors?: Sector[];
+  /** mobile technology as measured (default NR, i.e. 5G): only changes what the screen calls it */
+  rat?: 'LTE' | 'NR';
+  /** which scene draws it (default: x > 5000 → desert, else the city) */
+  zone?: string;
+  /** path-loss exponent fitted for this transmitter's surroundings (default: params wifiPathLossExp) */
+  plExp?: number;
+  /** more networks on the same radio (a venue AP broadcasts several): heard at the same strength, names not kept */
+  alias?: Array<{ bssid: string; security: Security }>;
+  /** cell: calibration added to the 3GPP model so a fitted site matches measured RSRP (venue survey) */
+  rsrpOffsetDb?: number;
+  /** the venue's own survey said where this was fitted from (notes for the network tag) */
+  fit?: { points: number; rmseDb: number };
+  /** Wi-Fi generation as the survey phone reported it (Android: 4 = 802.11n … 6 = 802.11ax, 8 = 802.11be) */
+  std?: number;
 }
 export interface Building { id: string; poly: Vec2[]; o2i: 'high' | 'low'; kind: string; height?: number; floor?: string }
 export interface Region { id: string; poly: Vec2[] }
@@ -96,8 +110,12 @@ export function zoneAt(p: Vec2): ZoneId {
     const [[x0, y0], [x1, y1]] = z.bounds;
     if (p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1) return z.id;
   }
-  return p[0] > 5000 ? 'desert' : 'street';
+  return p[0] > 30000 ? 'hall' : p[0] > 5000 ? 'desert' : 'street';
 }
+
+/** the scene a transmitter belongs to: what the renderer draws and labels in each zone */
+export function txScene(t: Transmitter): string { return t.zone ?? (t.pos[0] > 5000 ? 'desert' : 'city'); }
+export function sceneOf(zone: ZoneId): string { return zone === 'office' || zone === 'street' ? 'city' : zone; }
 
 export function inRegion(p: Vec2, id: string): boolean {
   const reg = LAYOUT.regions.find((r) => r.id === id);

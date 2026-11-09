@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Infinet Survey</title>
+<style>
+:root { --bg: #0b0d12; --panel: #141821; --line: #262c3a; --text: #e8ecf3; --mute: #8a93a6; --ok: #34d399; --warn: #fbbf24; --bad: #f87171; --acc: #22d3ee; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 15px/1.35 system-ui, sans-serif; overflow: hidden; }
+header { position: fixed; top: 0; left: 0; right: 0; padding: 10px 12px 8px; background: rgba(11, 13, 18, 0.92); border-bottom: 1px solid var(--line); z-index: 5; }
+header .row { display: flex; align-items: center; gap: 8px; }
+header h1 { font-size: 16px; margin: 0; flex: 1; }
+header .stat { font: 12px/1.3 ui-monospace, monospace; color: var(--mute); margin-top: 4px; }
+header .stat b { color: var(--text); font-weight: 600; }
+.warnbar { margin-top: 6px; padding: 6px 8px; border-radius: 8px; background: rgba(251, 191, 36, 0.12); color: var(--warn); font-size: 13px; display: none; }
+.warnbar.bad { background: rgba(248, 113, 113, 0.14); color: var(--bad); }
+button { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+button.pri { background: var(--acc); color: #04121a; border-color: var(--acc); font-weight: 700; }
+button.on { border-color: var(--acc); color: var(--acc); }
+button:disabled { opacity: 0.4; }
+canvas { position: fixed; left: 0; right: 0; top: 0; bottom: 0; width: 100%; height: 100%; touch-action: none; }
+footer { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); background: rgba(11, 13, 18, 0.92); border-top: 1px solid var(--line); z-index: 5; }
+footer .row { display: flex; gap: 8px; }
+footer .big { flex: 1; padding: 14px; font-size: 17px; }
+#hint { font-size: 13px; color: var(--mute); margin-bottom: 8px; min-height: 18px; }
+#prog { height: 4px; border-radius: 2px; background: var(--line); margin-bottom: 8px; overflow: hidden; display: none; }
+#prog i { display: block; height: 100%; width: 0; background: var(--acc); }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 86%; overflow: auto; background: var(--panel); border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; padding: 14px 14px 28px; z-index: 10; display: none; }
+.sheet.open { display: block; }
+.sheet h2 { font-size: 17px; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: center; }
+.sheet h3 { font-size: 13px; color: var(--mute); text-transform: uppercase; letter-spacing: 0.06em; margin: 16px 0 6px; }
+.sheet p { margin: 6px 0; color: var(--mute); font-size: 13px; }
+.field { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+.field label { flex: 0 0 38%; color: var(--mute); font-size: 13px; }
+input, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; width: 100%; min-width: 0; }
+.chk { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.chk .s { font-weight: 600; } .ok { color: var(--ok); } .no { color: var(--bad); } .wa { color: var(--warn); }
+.net { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.net .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.net .d { font: 12px ui-monospace, monospace; color: var(--mute); }
+.net .r { font: 600 13px ui-monospace, monospace; width: 52px; text-align: right; }
+.tag { font-size: 11px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--line); color: var(--mute); margin-left: 4px; }
+.tag.venue { color: var(--acc); border-color: var(--acc); }
+.tag.demo { color: var(--warn); border-color: var(--warn); }
+#toast { position: fixed; left: 12px; right: 12px; top: 92px; padding: 10px 12px; border-radius: 10px; background: #1f2633; border: 1px solid var(--line); z-index: 20; display: none; font-size: 14px; }
+.legend { position: fixed; right: 10px; z-index: 4; font: 11px ui-monospace, monospace; color: var(--mute); background: rgba(11, 13, 18, 0.8); padding: 6px 8px; border-radius: 8px; }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 4px 0 8px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<canvas id="map"></canvas>
+<header>
+  <div class="row">
+    <h1>Infinet Survey</h1>
+    <button id="bNets">Networks</button>
+    <button id="bSetup">Setup</button>
+    <button id="bExport">Export</button>
+  </div>
+  <div class="stat" id="stat">starting…</div>
+  <div class="warnbar" id="warn"></div>
+</header>
+<div class="legend" id="legend"></div>
+<footer>
+  <div id="prog"><i></i></div>
+  <div id="hint"></div>
+  <div class="row">
+    <button id="bUndo">Undo</button>
+    <button id="bRec" class="pri big" disabled>Record here</button>
+    <button id="bStay">Stay</button>
+    <button id="bPin">Pin AP</button>
+  </div>
+</footer>
+
+<section class="sheet" id="setup">
+  <h2>Setup <button data-close>Done</button></h2>
+  <h3>Phone checks</h3>
+  <div id="checks"></div>
+  <h3>Floor plan</h3>
+  <p>Best: a straight-on photo of the fire evacuation plan on the hall wall. Or a blank hall of known size.</p>
+  <div class="field"><input type="file" id="fPlan" accept="image/*"></div>
+  <div class="field"><label>Blank hall (m)</label><input id="blankW" type="number" placeholder="width" inputmode="decimal"><input id="blankL" type="number" placeholder="length" inputmode="decimal"><button id="bBlank">Use</button></div>
+  <h3>Scale</h3>
+  <p id="scaleTxt">Not set. Tap two points on the plan whose real distance you know (a wall, a booth row, 10 floor tiles).</p>
+  <div class="field"><button id="bCalib">Tap two points</button></div>
+  <div class="field" id="calibRow" style="display:none"><label>Distance A → B (m)</label><input id="calibM" type="number" inputmode="decimal" step="0.01"><button id="bCalibOk" class="pri">Apply</button></div>
+  <h3>Survey</h3>
+  <div class="field"><label>Survey name</label><input id="sName"></div>
+  <div class="field"><label>Who is surveying</label><input id="sWho" placeholder="initials"></div>
+  <div class="field"><label>Phone held at (m)</label><input id="sHeight" type="number" inputmode="decimal" step="0.1"></div>
+  <div class="field"><label>Crowd right now</label><select id="sCrowd"><option value="empty">Empty (setup, rehearsal)</option><option value="some">Some people</option><option value="busy">Busy (show day)</option></select></div>
+  <div class="field"><label>Team code</label><input id="sTeam"><button id="bTeam">Set</button></div>
+  <p>Use the same team code on both phones, so the same network gets the same id on both.</p>
+  <h3>Start over</h3>
+  <div class="field"><button id="bNew">New survey (keeps plan and scale)</button></div>
+  <p id="files"></p>
+</section>
+
+<section class="sheet" id="nets">
+  <h2>Networks around you <button data-close>Done</button></h2>
+  <p>Tap a name to colour the map by it. ★ marks the venue's own network: only ★ names and Infinet-Demo- hotspots are saved by name; everything else is saved as an anonymous id.</p>
+  <div id="netList"></div>
+</section>
+
+<section class="sheet" id="exportS">
+  <h2>Export <button data-close>Done</button></h2>
+  <div id="sum"></div>
+  <div class="field"><label>Include the plan image</label><select id="xPlan"><option value="1">Yes</option><option value="0">No</option></select></div>
+  <div class="field"><button id="bShare" class="pri">Save and share</button><button id="bSave">Save to Downloads</button></div>
+  <p>Files go to Download/Infinet on the phone. On the laptop: <code>adb pull /sdcard/Download/Infinet</code>, or send the file to yourself.</p>
+  <h3>Latency check</h3>
+  <p>Times 5 tiny requests over the phone's current connection (venue Wi-Fi or mobile data) and saves the median at the marker.</p>
+  <div class="field"><button id="bPing">Run latency check</button></div>
+</section>
+<div id="toast"></div>
+
+<script>
+'use strict';
+// ───────────── bridge (a mock when opened in a desktop browser, for testing the page) ─────────────
+const A = window.Android || (() => {
+  const store = {}; let cb = null; let tick = 0;
+  const fake = () => { tick++; return { fresh: true, t: Date.now(), ok: tick, refused: 0, aps: Array.from({ length: 14 }, (_, i) => ({ ap: 'ap' + i, grp: 'g' + (i >> 1), net: 'n' + (i % 5), name: i % 5 === 0 ? 'Venue-Guest' : i === 3 ? 'Infinet-Demo-Test' : 'Net ' + (i % 5), keep: false, demo: i === 3, la: i % 3 === 0, f: i % 2 ? 2437 : 5180, ch: i % 2 ? 6 : 36, band: i % 2 ? '2.4' : '5', bw: 20, sec: 'WPA2-PSK', pmf: 'none', std: 6, mc: i < 2, rssi: -40 - i * 3 - Math.round(Math.random() * 4), ageMs: 300 })) }; };
+  return {
+    info: () => JSON.stringify({ model: 'Desktop mock', android: '-', sdk: 0, teamCode: 'test-code', allow: [], fine: true, nearby: true, location: true, wifi: true, throttled: false, rtt: true, dir: '(mock)' }),
+    askPermissions() {}, openSettings() {}, setTeamCode() {}, setAllow() {}, netId: (s) => 'id-' + s, rttCapable: () => 'true',
+    setScanning(on) { if (on && !cb) cb = setInterval(() => window.onScan(fake()), 2500); },
+    cells: () => JSON.stringify({ cells: [{ reg: true, rat: 'LTE', pci: 101, arfcn: 1850, plmn: '000-00', rsrp: -95, rsrq: -11, snr: 8 }], sig: [{ rat: 'NR', rsrp: -98, rsrq: -12, snr: 6, level: 3, dbm: -98 }] }),
+    range(tag) { setTimeout(() => window.onRtt(tag, [{ ap: 'ap0', dM: 7.4, sdM: 0.6, rssi: -45, n: 7 }]), 400); },
+    netType: () => 'wifi', save: (n, j) => { store[n] = j; return true; }, load: (n) => store[n] || '', list: () => JSON.stringify(Object.keys(store)),
+    export: (n) => 'Download/Infinet/' + n,
+  };
+})();
+
+// ───────────── state ─────────────
+const $ = (id) => document.getElementById(id);
+let info = JSON.parse(A.info());
+const newId = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+let S = null;               // the survey being recorded (saved after every point)
+let planImg = null;         // HTMLImageElement or canvas
+let view = { k: 1, tx: 0, ty: 0 };
+let marker = null;          // [px, py] in plan pixels
+let mode = 'survey';        // survey | calibA | calibB
+let calibA = null, calibB = null;
+let live = { aps: [], freshTimes: [], refused: 0, ok: 0, lastFresh: 0 };
+let rec = null;             // the recording in progress
+let stay = false;           // repeat at the same spot every 20 s
+let stayTimer = null;
+let colourBy = null;        // network id the map is coloured by (null: strongest of any)
+
+function blankSurvey(keep) {
+  return {
+    kind: 'infinet-survey', v: 1, id: newId(), name: keep?.name ?? 'Venue survey', created: new Date().toISOString(),
+    device: { model: info.model, android: info.android, sdk: info.sdk }, who: keep?.who ?? '',
+    plan: keep?.plan ?? null, settings: keep?.settings ?? { heightM: 1.2, crowd: 'empty' },
+    points: [], latency: [], pins: [],
+  };
+}
+function save() { if (!A.save('current.json', JSON.stringify(S))) toast('Could not save on the phone!', true); }
+
+function load() {
+  try { S = JSON.parse(A.load('current.json') || 'null'); } catch { S = null; }
+  if (!S || S.kind !== 'infinet-survey') S = blankSurvey();
+  const p = A.load('plan.txt');
+  if (p) setPlanFromUrl(p, false);
+  else if (S.plan?.kind === 'blank') makeBlank(S.plan.blank.wM, S.plan.blank.lM, false);
+}
+
+// ───────────── plan ─────────────
+function setPlanFromUrl(url, isNew) {
+  const img = new Image();
+  img.onload = () => {
+    planImg = img;
+    if (isNew) { S.plan = { kind: 'image', w: img.naturalWidth, h: img.naturalHeight, mPerPx: null, calib: null }; save(); }
+    fit(); draw(); ui();
+  };
+  img.src = url;
+}
+function makeBlank(wM, lM, isNew) {
+  const pxPerM = 10, c = document.createElement('canvas');
+  c.width = Math.round(wM * pxPerM); c.height = Math.round(lM * pxPerM);
+  const g = c.getContext('2d');
+  g.fillStyle = '#e9edf3'; g.fillRect(0, 0, c.width, c.height);
+  g.strokeStyle = '#c3cad6'; g.lineWidth = 1;
+  for (let x = 0; x <= wM; x += 5) { g.beginPath(); g.moveTo(x * pxPerM, 0); g.lineTo(x * pxPerM, c.height); g.stroke(); }
+  for (let y = 0; y <= lM; y += 5) { g.beginPath(); g.moveTo(0, y * pxPerM); g.lineTo(c.width, y * pxPerM); g.stroke(); }
+  g.strokeStyle = '#59627a'; g.lineWidth = 3; g.strokeRect(1.5, 1.5, c.width - 3, c.height - 3);
+  g.fillStyle = '#59627a'; g.font = '14px sans-serif';
+  for (let x = 0; x <= wM; x += 10) g.fillText(`${x} m`, x * pxPerM + 3, 16);
+  for (let y = 10; y <= lM; y += 10) g.fillText(`${y} m`, 3, y * pxPerM - 3);
+  planImg = c;
+  if (isNew) { S.plan = { kind: 'blank', w: c.width, h: c.height, mPerPx: 1 / pxPerM, calib: { auto: true }, blank: { wM, lM } }; A.save('plan.txt', ''); save(); }
+  fit(); draw(); ui();
+}
+$('fPlan').addEventListener('change', (e) => {
+  const f = e.target.files?.[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    // shrink to at most 2400 px so saving stays quick; keep it sharp enough to tap a booth
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 2400 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const url = c.toDataURL('image/jpeg', 0.88);
+      A.save('plan.txt', url);
+      if (S.points.length) toast('New plan: earlier points keep the old plan\'s positions. Start a new survey if the plan changed.', true);
+      setPlanFromUrl(url, true);
+      toast('Plan loaded. Now set the scale: tap two points you know the distance between.');
+    };
+    img.src = r.result;
+  };
+  r.readAsDataURL(f);
+});
+$('bBlank').onclick = () => {
+  const w = Number($('blankW').value), l = Number($('blankL').value);
+  if (!(w > 5 && l > 5 && w < 1000 && l < 1000)) return toast('Enter the hall width and length in metres', true);
+  makeBlank(w, l, true); closeSheets(); toast(`Blank hall ${w} × ${l} m. Scale is set. Tap where you are.`);
+};
+
+// ───────────── view: pan, pinch, tap ─────────────
+const cv = $('map'), g = cv.getContext('2d');
+function resize() { const d = devicePixelRatio || 1; cv.width = innerWidth * d; cv.height = innerHeight * d; draw(); }
+function fit() {
+  if (!planImg) return;
+  const top = 100, bot = 150, w = innerWidth, h = innerHeight - top - bot;
+  const k = Math.min(w / planImg.width, h / planImg.height) * 0.96;
+  view = { k, tx: (w - planImg.width * k) / 2, ty: top + (h - planImg.height * k) / 2 };
+}
+const toPlan = (x, y) => [(x - view.tx) / view.k, (y - view.ty) / view.k];
+const toScr = (px, py) => [px * view.k + view.tx, py * view.k + view.ty];
+const ptrs = new Map(); let gest = null;
+cv.addEventListener('pointerdown', (e) => {
+  cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  if (ptrs.size === 1) gest = { x0: e.clientX, y0: e.clientY, t0: Date.now(), moved: 0, multi: false };
+  else if (gest) gest.multi = true;
+});
+cv.addEventListener('pointermove', (e) => {
+  if (!ptrs.has(e.pointerId)) return;
+  const prev = [...ptrs.values()];
+  const before = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  if (ptrs.size === 1) {
+    view.tx += e.clientX - before[0]; view.ty += e.clientY - before[1];
+    if (gest) gest.moved += Math.hypot(e.clientX - before[0], e.clientY - before[1]);
+  } else if (ptrs.size === 2) {
+    const now = [...ptrs.values()];
+    const d0 = Math.hypot(prev[0][0] - prev[1][0], prev[0][1] - prev[1][1]), d1 = Math.hypot(now[0][0] - now[1][0], now[0][1] - now[1][1]);
+    const m0 = [(prev[0][0] + prev[1][0]) / 2, (prev[0][1] + prev[1][1]) / 2], m1 = [(now[0][0] + now[1][0]) / 2, (now[0][1] + now[1][1]) / 2];
+    if (d0 > 0) zoomAt(m0[0], m0[1], d1 / d0);
+    view.tx += m1[0] - m0[0]; view.ty += m1[1] - m0[1];
+  }
+  draw();
+});
+function endPtr(e) {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.delete(e.pointerId);
+  if (ptrs.size === 0 && gest && !gest.multi && gest.moved < 12 && Date.now() - gest.t0 < 600) tap(e.clientX, e.clientY);
+  if (ptrs.size === 0) gest = null;
+}
+cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
+cv.addEventListener('wheel', (e) => { e.preventDefault(); zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.15 : 1 / 1.15); draw(); }, { passive: false });
+function zoomAt(x, y, f) {
+  const k = Math.max(0.02, Math.min(40, view.k * f)); f = k / view.k;
+  view.tx = x - (x - view.tx) * f; view.ty = y - (y - view.ty) * f; view.k = k;
+}
+function tap(x, y) {
+  if (!planImg) return toast('Load a floor plan first (Setup)', true);
+  const p = toPlan(x, y);
+  if (p[0] < 0 || p[1] < 0 || p[0] > planImg.width || p[1] > planImg.height) return;
+  if (mode === 'calibA') { calibA = p; mode = 'calibB'; ui(); draw(); return; }
+  if (mode === 'calibB') { calibB = p; mode = 'survey'; openSheet('setup'); $('calibRow').style.display = ''; $('calibM').focus(); ui(); draw(); return; }
+  if (rec) return;
+  if (stay) setStay(false);
+  marker = p; ui(); draw();
+}
+
+// ───────────── drawing ─────────────
+function rssiOf(pt) {
+  if (colourBy) { const a = pt.wifi.filter((w) => w.net === colourBy); return a.length ? Math.max(...a.map((w) => w.rssi)) : null; }
+  return pt.wifi.length ? Math.max(...pt.wifi.map((w) => w.rssi)) : null;
+}
+const colour = (r) => r === null ? '#59627a' : r >= -55 ? '#34d399' : r >= -65 ? '#a3e635' : r >= -72 ? '#fbbf24' : r >= -80 ? '#fb923c' : '#f87171';
+function draw() {
+  const d = devicePixelRatio || 1;
+  g.setTransform(d, 0, 0, d, 0, 0);
+  g.fillStyle = '#0b0d12'; g.fillRect(0, 0, innerWidth, innerHeight);
+  if (!planImg) {
+    g.fillStyle = '#8a93a6'; g.font = '15px system-ui'; g.textAlign = 'center';
+    g.fillText('Open Setup and load a floor plan', innerWidth / 2, innerHeight / 2);
+    g.textAlign = 'left'; return;
+  }
+  g.drawImage(planImg, view.tx, view.ty, planImg.width * view.k, planImg.height * view.k);
+  // calibration line
+  const cA = calibA ?? S.plan?.calib?.a, cB = calibB ?? S.plan?.calib?.b;
+  if (cA) {
+    const a = toScr(...cA);
+    g.strokeStyle = '#22d3ee'; g.lineWidth = 2;
+    if (cB) { const b = toScr(...cB); g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke(); dot(b, 5, '#22d3ee'); }
+    dot(a, 5, '#22d3ee');
+  }
+  for (const pt of S.points) {
+    const s = toScr(pt.px, pt.py);
+    dot(s, 7, colour(rssiOf(pt)), '#0b0d12');
+  }
+  for (const pin of S.pins || []) {
+    const s = toScr(pin.px, pin.py);
+    g.fillStyle = '#a78bfa'; g.strokeStyle = '#0b0d12'; g.lineWidth = 2;
+    g.beginPath(); g.rect(s[0] - 7, s[1] - 7, 14, 14); g.fill(); g.stroke();
+    g.fillStyle = '#0b0d12'; g.font = 'bold 10px system-ui'; g.fillText('AP', s[0] - 6, s[1] + 4);
+  }
+  if (marker) {
+    const s = toScr(...marker);
+    g.strokeStyle = rec ? '#fbbf24' : '#22d3ee'; g.lineWidth = 3;
+    g.beginPath(); g.arc(s[0], s[1], 13, 0, 7); g.stroke();
+    g.beginPath(); g.moveTo(s[0] - 20, s[1]); g.lineTo(s[0] + 20, s[1]); g.moveTo(s[0], s[1] - 20); g.lineTo(s[0], s[1] + 20); g.lineWidth = 1.5; g.stroke();
+  }
+  // scale bar
+  const mpp = S.plan?.mPerPx;
+  if (mpp) {
+    const pxPerM = view.k / mpp;
+    let m = 1; for (const c of [1, 2, 5, 10, 20, 50, 100]) if (c * pxPerM <= 140) m = c;
+    const y = innerHeight - 165, x = 14, w = m * pxPerM;
+    g.fillStyle = 'rgba(11,13,18,0.8)'; g.fillRect(x - 6, y - 16, w + 50, 24);
+    g.strokeStyle = '#e8ecf3'; g.lineWidth = 2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + w, y); g.moveTo(x, y - 5); g.lineTo(x, y + 3); g.moveTo(x + w, y - 5); g.lineTo(x + w, y + 3); g.stroke();
+    g.fillStyle = '#e8ecf3'; g.font = '12px ui-monospace, monospace'; g.fillText(`${m} m`, x + w + 6, y + 4);
+  }
+}
+function dot(s, r, fill, stroke) {
+  g.beginPath(); g.arc(s[0], s[1], r, 0, 7); g.fillStyle = fill; g.fill();
+  if (stroke) { g.strokeStyle = stroke; g.lineWidth = 2; g.stroke(); }
+}
+
+// ───────────── scanning ─────────────
+window.onScan = (m) => {
+  live.aps = m.aps; live.ok = m.ok; live.refused = m.refused;
+  if (m.fresh) { live.freshTimes.push(m.t); live.lastFresh = m.t; }
+  live.freshTimes = live.freshTimes.filter((t) => m.t - t < 60_000);
+  if (rec && m.fresh && m.t >= rec.t0) {
+    rec.fresh++;
+    for (const a of m.aps) {
+      if (a.ageMs > 6000) continue;            // cached from an older scan: not heard at this spot
+      let s = rec.samples.get(a.ap);
+      if (!s) { s = { meta: a, v: [] }; rec.samples.set(a.ap, s); }
+      s.v.push(a.rssi);
+    }
+  }
+  ui();
+  if ($('nets').classList.contains('open')) renderNets();
+};
+window.onError = (e) => toast(e, true);
+window.onInfo = (i) => { info = i; ui(); renderChecks(); };
+window.onBack = () => { if (document.querySelector('.sheet.open')) closeSheets(); };
+window.onRtt = (tag, res) => { if (rec && rec.tag === tag) rec.rtt = res; };
+
+// ───────────── recording ─────────────
+const med = (v) => { const s = [...v].sort((a, b) => a - b); return s.length % 2 ? s[(s.length - 1) / 2] : Math.round((s[s.length / 2 - 1] + s[s.length / 2]) / 2); };
+function record() {
+  if (rec || !marker) return;
+  if (!S.plan?.mPerPx) return toast('Set the scale first (Setup → Tap two points)', true);
+  const tag = `p${Date.now()}`;
+  rec = { tag, t0: Date.now(), px: marker[0], py: marker[1], fresh: 0, samples: new Map(), rtt: null, cellsStart: safeJson(A.cells()) };
+  if (info.rtt) A.range(tag);
+  $('prog').style.display = 'block';
+  const iv = setInterval(() => {
+    const el = Date.now() - rec.t0;
+    $('prog').firstElementChild.style.width = `${Math.min(100, (100 * el) / 12000)}%`;
+    if ((rec.fresh >= 2 && el >= 4000) || el >= 12000) { clearInterval(iv); finish(); }
+    else ui();
+  }, 250);
+  ui(); draw();
+}
+function safeJson(s) { try { return JSON.parse(s); } catch { return null; } }
+function finish() {
+  const r = rec; rec = null; $('prog').style.display = 'none';
+  if (!r.fresh) {
+    toast('No fresh Wi-Fi scan in 12 s, so nothing was saved. Turn off "Wi-Fi scan throttling" in Developer options, then try again.', true);
+    ui(); draw(); return;
+  }
+  const wifi = [];
+  for (const [ap, s] of r.samples) {
+    const a = s.meta;
+    const w = { ap, grp: a.grp, net: a.net, la: a.la, f: a.f, ch: a.ch, band: a.band, bw: a.bw, sec: a.sec, pmf: a.pmf, std: a.std, mc: a.mc, rssi: med(s.v), n: s.v.length, lo: Math.min(...s.v), hi: Math.max(...s.v) };
+    if (a.oui) w.oui = a.oui;
+    if (a.keep) w.ssid = a.name;                 // the venue's network or our demo hotspot
+    if (a.demo && a.bssid) w.bssid = a.bssid;
+    wifi.push(w);
+  }
+  wifi.sort((a, b) => b.rssi - a.rssi);
+  const pt = {
+    i: S.points.length, t: new Date(r.t0).toISOString(), durS: Math.round((Date.now() - r.t0) / 100) / 10, px: Math.round(r.px * 10) / 10, py: Math.round(r.py * 10) / 10,
+    scans: r.fresh, crowd: S.settings.crowd, heightM: S.settings.heightM, who: S.who, stay: stay || undefined,
+    wifi, cell: safeJson(A.cells()) ?? r.cellsStart, rtt: r.rtt ?? [],
+  };
+  S.points.push(pt); save();
+  toast(`Saved point ${S.points.length}: ${wifi.length} access points, ${r.fresh} scans${pt.rtt.length ? `, ${pt.rtt.length} ranged` : ''}`);
+  if (!stay) marker = null;
+  else stayTimer = setTimeout(() => { if (stay && marker) record(); }, 20_000);
+  ui(); draw();
+}
+$('bRec').onclick = record;
+$('bUndo').onclick = () => {
+  if (rec || !S.points.length) return;
+  if ($('bUndo').dataset.armed !== '1') { $('bUndo').dataset.armed = '1'; $('bUndo').textContent = 'Undo?'; setTimeout(() => { $('bUndo').dataset.armed = ''; $('bUndo').textContent = 'Undo'; }, 2500); return; }
+  S.points.pop(); save(); $('bUndo').dataset.armed = ''; $('bUndo').textContent = 'Undo'; toast(`Removed the last point. ${S.points.length} left.`); draw(); ui();
+};
+function setStay(on) {
+  stay = on; clearTimeout(stayTimer);
+  $('bStay').classList.toggle('on', on);
+  if (on) { if (!marker) { stay = false; $('bStay').classList.remove('on'); return toast('Tap your spot first, then Stay records it every 20 s', true); } toast('Staying: records this spot every 20 s until you tap the map or Stay again'); if (!rec) record(); }
+  ui();
+}
+$('bStay').onclick = () => setStay(!stay);
+$('bPin').onclick = () => {
+  if (!marker) return toast('Tap the spot under the access point you can see (ceiling, column or wall), then Pin AP', true);
+  S.pins = S.pins || [];
+  S.pins.push({ i: S.pins.length, t: new Date().toISOString(), px: r1(marker[0]), py: r1(marker[1]), kind: 'ap-seen', who: S.who });
+  save(); marker = null; ui(); draw();
+  toast(`Pinned access point ${S.pins.length}. Take a photo of it too (shows the height and model).`);
+};
+
+// ───────────── status line ─────────────
+function ui() {
+  const perMin = live.freshTimes.length;
+  const n = live.aps.length;
+  $('stat').innerHTML = `<b>${S.points.length}</b> points · <b>${perMin}</b> scans/min · <b>${n}</b> heard${S.plan?.mPerPx ? '' : ' · <span class="wa">no scale</span>'}`;
+  const w = $('warn'); let msg = '', bad = false;
+  if (!info.fine || !info.nearby) { msg = 'Permission needed: allow Location (and Nearby devices). Setup → Phone checks.'; bad = true; }
+  else if (!info.location) { msg = 'Turn Location on: Android hides Wi-Fi scans without it.'; bad = true; }
+  else if (!info.wifi) { msg = 'Turn Wi-Fi on (you don\'t need to connect to anything).'; bad = true; }
+  else if (info.throttled || (perMin <= 4 && Date.now() - started > 70_000)) msg = 'Scans are throttled (4 per 2 min). Developer options → turn off "Wi-Fi scan throttling".';
+  w.textContent = msg; w.style.display = msg ? 'block' : 'none'; w.classList.toggle('bad', bad);
+  const h = $('hint');
+  h.textContent = rec ? `Recording… hold still (${rec.fresh} scan${rec.fresh === 1 ? '' : 's'})`
+    : mode === 'calibA' ? 'Scale: tap point A' : mode === 'calibB' ? 'Scale: tap point B'
+      : !planImg ? 'Setup → load the floor plan' : !S.plan?.mPerPx ? 'Setup → set the scale' : marker ? (stay ? 'Staying here: a point every 20 s' : 'Stand on the cross, hold the phone at chest height, then Record') : 'Tap where you are standing';
+  $('bRec').disabled = !!rec || !marker || !S.plan?.mPerPx;
+  $('bRec').textContent = rec ? 'Recording…' : 'Record here';
+  const lg = $('legend'); lg.style.top = (document.querySelector('header').offsetHeight + 6) + 'px';
+  const by = colourBy ? (live.aps.find((a) => a.net === colourBy)?.name || 'one network') : 'strongest of any';
+  lg.innerHTML = `${by}<br><i style="background:#34d399"></i>≥−55<i style="background:#fbbf24"></i>−72<i style="background:#f87171"></i>&lt;−80`;
+}
+const started = Date.now();
+setInterval(ui, 2000);
+
+// ───────────── sheets ─────────────
+function openSheet(id) { closeSheets(); $(id).classList.add('open'); if (id === 'setup') renderSetup(); if (id === 'nets') renderNets(); if (id === 'exportS') renderSum(); }
+function closeSheets() { document.querySelectorAll('.sheet').forEach((s) => s.classList.remove('open')); }
+document.querySelectorAll('[data-close]').forEach((b) => (b.onclick = closeSheets));
+$('bSetup').onclick = () => openSheet('setup'); $('bNets').onclick = () => openSheet('nets'); $('bExport').onclick = () => openSheet('exportS');
+
+function renderChecks() {
+  const row = (name, ok, fix, warn) => `<div class="chk"><span>${name}</span><span class="s ${ok ? 'ok' : warn ? 'wa' : 'no'}">${ok ? '✓' : warn ? '!' : '✕'}${fix && !ok ? ` <button data-fix="${fix}">Fix</button>` : ''}</span></div>`;
+  $('checks').innerHTML = row('Location permission', info.fine, 'perm') + row('Nearby devices permission', info.nearby, 'perm') + row('Location switched on', info.location, 'location')
+    + row('Wi-Fi switched on', info.wifi, 'wifi') + row('Scan throttling off', !info.throttled, 'dev', true) + row(`Distance ranging (802.11mc)`, info.rtt, null, true)
+    + `<p>${info.model} · Android ${info.android}</p>`;
+  $('checks').querySelectorAll('[data-fix]').forEach((b) => (b.onclick = () => {
+    const f = b.dataset.fix;
+    if (f === 'perm') { A.askPermissions(); setTimeout(() => A.openSettings('app'), 1500); } else A.openSettings(f);
+  }));
+}
+function renderSetup() {
+  info = JSON.parse(A.info()); renderChecks();
+  $('sName').value = S.name; $('sWho').value = S.who || ''; $('sHeight').value = S.settings.heightM; $('sCrowd').value = S.settings.crowd; $('sTeam').value = info.teamCode;
+  const c = S.plan?.calib;
+  $('scaleTxt').textContent = S.plan?.mPerPx ? (c?.auto ? 'Set by the blank hall size.' : `Set: ${c.m} m between A and B (${(1 / S.plan.mPerPx).toFixed(1)} px per metre).`) : 'Not set. Tap two points on the plan whose real distance you know (a wall, a booth row, 10 floor tiles).';
+  const files = safeJson(A.list()) || [];
+  $('files').textContent = `Saved on this phone: ${files.join(', ') || 'nothing yet'} (${info.dir})`;
+}
+$('sName').onchange = () => { S.name = $('sName').value; save(); };
+$('sWho').onchange = () => { S.who = $('sWho').value; save(); };
+$('sHeight').onchange = () => { const v = Number($('sHeight').value); if (v > 0 && v < 3) { S.settings.heightM = v; save(); } };
+$('sCrowd').onchange = () => { S.settings.crowd = $('sCrowd').value; save(); };
+$('bTeam').onclick = () => {
+  const v = $('sTeam').value.trim();
+  if (v.length < 4) return toast('Team code: at least 4 characters', true);
+  if (S.points.length) toast('Changing the team code changes ids: start a new survey so one file has one code.', true);
+  A.setTeamCode(v); info = JSON.parse(A.info()); toast('Team code set');
+};
+$('bCalib').onclick = () => { if (!planImg) return toast('Load a plan first', true); calibA = calibB = null; mode = 'calibA'; closeSheets(); ui(); draw(); };
+$('bCalibOk').onclick = () => {
+  const m = Number($('calibM').value);
+  if (!(m > 0.2 && m < 2000) || !calibA || !calibB) return toast('Enter the real distance in metres', true);
+  const px = Math.hypot(calibB[0] - calibA[0], calibB[1] - calibA[1]);
+  if (px < 20) return toast('Pick two points further apart', true);
+  S.plan.mPerPx = m / px; S.plan.calib = { a: calibA.map(r1), b: calibB.map(r1), m };
+  calibA = calibB = null; save(); $('calibRow').style.display = 'none'; renderSetup(); draw(); ui();
+  toast(`Scale set: ${(px / m).toFixed(1)} px per metre`);
+};
+const r1 = (v) => Math.round(v * 10) / 10;
+$('bNew').onclick = () => {
+  if ($('bNew').dataset.armed !== '1') { $('bNew').dataset.armed = '1'; $('bNew').textContent = 'Tap again to start a new survey'; setTimeout(() => { $('bNew').dataset.armed = ''; $('bNew').textContent = 'New survey (keeps plan and scale)'; }, 3000); return; }
+  if (S.points.length) A.save(`survey-${S.id}.json`, JSON.stringify(S));
+  S = blankSurvey(S); save(); marker = null; setStay(false);
+  $('bNew').dataset.armed = ''; $('bNew').textContent = 'New survey (keeps plan and scale)'; renderSetup(); draw(); ui(); toast('New survey started. The old one is kept on the phone.');
+};
+
+function renderNets() {
+  const allow = new Set(info.allow || []);
+  const by = new Map();
+  for (const a of live.aps) {
+    const k = a.name || '(hidden)';
+    const e = by.get(k) ?? { name: a.name, net: a.net, aps: 0, best: -200, bands: new Set(), sec: a.sec, la: a.la, demo: a.demo };
+    e.aps++; e.best = Math.max(e.best, a.rssi); e.bands.add(a.band); by.set(k, e);
+  }
+  const rows = [...by.values()].sort((a, b) => b.best - a.best);
+  const list = $('netList'); list.textContent = '';
+  for (const e of rows) {
+    const div = document.createElement('div'); div.className = 'net';
+    const star = document.createElement('button'); star.textContent = allow.has(e.name) ? '★' : '☆'; star.className = allow.has(e.name) ? 'on' : '';
+    star.disabled = !e.name || e.demo;
+    star.onclick = () => {
+      const s = new Set(info.allow || []); if (s.has(e.name)) s.delete(e.name); else s.add(e.name);
+      info.allow = [...s]; A.setAllow(JSON.stringify(info.allow)); renderNets();
+    };
+    const nm = document.createElement('div'); nm.className = 'nm';
+    const t = document.createElement('div'); t.textContent = e.name || '(hidden name)';  // text, never HTML
+    if (allow.has(e.name)) { const s = document.createElement('span'); s.className = 'tag venue'; s.textContent = 'venue'; t.appendChild(s); }
+    if (e.demo) { const s = document.createElement('span'); s.className = 'tag demo'; s.textContent = 'ours'; t.appendChild(s); }
+    if (e.la && !e.demo) { const s = document.createElement('span'); s.className = 'tag'; s.textContent = 'phone/hotspot?'; t.appendChild(s); }
+    const d = document.createElement('div'); d.className = 'd'; d.textContent = `${e.aps} AP${e.aps > 1 ? 's' : ''} · ${[...e.bands].join('/')} GHz · ${e.sec}`;
+    nm.append(t, d);
+    nm.onclick = () => { colourBy = colourBy === e.net ? null : e.net; closeSheets(); draw(); ui(); toast(colourBy ? `Map coloured by ${e.name || 'that network'}` : 'Map coloured by the strongest of any'); };
+    const r = document.createElement('div'); r.className = 'r'; r.textContent = `${e.best}`;
+    r.style.color = colour(e.best);
+    div.append(star, nm, r); list.appendChild(div);
+  }
+  if (!rows.length) list.innerHTML = '<p>Nothing heard yet. Check Setup → Phone checks.</p>';
+}
+
+// ───────────── export ─────────────
+function exportJson(withPlan) {
+  const names = {};
+  for (const n of info.allow || []) names[A.netId(n)] = n;
+  const out = { ...S, exportedAt: new Date().toISOString(), teamCode: info.teamCode, names };
+  out.pins = (S.pins || []).map((p) => ({ ...p, xM: S.plan?.mPerPx ? r1(p.px * S.plan.mPerPx) : null, yM: S.plan?.mPerPx ? r1(p.py * S.plan.mPerPx) : null }));
+  out.points = S.points.map((p) => ({ ...p, xM: S.plan?.mPerPx ? r1(p.px * S.plan.mPerPx) : null, yM: S.plan?.mPerPx ? r1(p.py * S.plan.mPerPx) : null }));
+  if (withPlan) out.planImage = A.load('plan.txt') || null;
+  return JSON.stringify(out);
+}
+function renderSum() {
+  const aps = new Set(), nets = new Set(); let scans = 0;
+  for (const p of S.points) { scans += p.scans; for (const w of p.wifi) { aps.add(w.ap); nets.add(w.net); } }
+  const span = S.points.length ? `${S.points[0].t.slice(11, 16)}–${S.points.at(-1).t.slice(11, 16)}` : '—';
+  $('sum').innerHTML = `<div class="chk"><span>Points</span><span class="s">${S.points.length}</span></div><div class="chk"><span>Access points heard</span><span class="s">${aps.size} (${nets.size} networks)</span></div><div class="chk"><span>Scans</span><span class="s">${scans}</span></div><div class="chk"><span>Time</span><span class="s">${span}</span></div><div class="chk"><span>Latency checks</span><span class="s">${S.latency.length}</span></div><div class="chk"><span>Access points pinned</span><span class="s">${(S.pins || []).length}</span></div>`;
+}
+function doExport(share) {
+  if (!S.points.length && !S.latency.length) return toast('Nothing recorded yet', true);
+  const dev = (info.model || 'phone').replace(/[^A-Za-z0-9]+/g, '-');
+  const name = `infinet-survey-${S.id}-${dev}-${S.points.length}pts.json`;
+  const p = A.export(name, exportJson($('xPlan').value === '1'), share);
+  toast(p ? `Saved: ${p}` : 'Export failed', !p);
+}
+$('bShare').onclick = () => doExport(true);
+$('bSave').onclick = () => doExport(false);
+$('bPing').onclick = async () => {
+  const via = A.netType(), ms = [];
+  toast(`Latency check over ${via}…`);
+  for (let i = 0; i < 5; i++) {
+    const t = performance.now();
+    try { await fetch(`https://connectivitycheck.gstatic.com/generate_204?${Date.now()}${i}`, { cache: 'no-store', mode: 'no-cors' }); ms.push(Math.round(performance.now() - t)); } catch { ms.push(null); }
+  }
+  const ok = ms.filter((v) => v !== null);
+  const at = marker ?? (S.points.length ? [S.points.at(-1).px, S.points.at(-1).py] : null);
+  S.latency.push({ t: new Date().toISOString(), via, ms, medianMs: ok.length ? med(ok) : null, lost: ms.length - ok.length, px: at?.[0] ?? null, py: at?.[1] ?? null });
+  save(); renderSum();
+  toast(ok.length ? `Latency over ${via}: ${med(ok)} ms median (${ok.length}/5 answered)` : `No answer over ${via}`, !ok.length);
+};
+
+// ───────────── toast ─────────────
+let toastT = null;
+function toast(msg, warn) {
+  const t = $('toast'); t.textContent = msg; t.style.display = 'block'; t.style.borderColor = warn ? '#fbbf24' : '#262c3a';
+  clearTimeout(toastT); toastT = setTimeout(() => (t.style.display = 'none'), warn ? 6000 : 3000);
+}
+
+// ───────────── start ─────────────
+addEventListener('resize', () => { resize(); });
+load(); resize(); fit(); draw(); ui();
+A.setScanning(true);
+</script>
+</body>
+</html>

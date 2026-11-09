@@ -15,6 +15,7 @@
     "shots": "tsx tools/record/shots.ts",
     "qa": "tsx tools/record/qa.ts",
     "cinematic": "tsx tools/record/cinematic.ts",
+    "film": "tsx tools/record/film.ts",
     "scanner": "tsx tools/scanner-linux/scanner.ts"
   },
   "dependencies": {

@@ -5,8 +5,8 @@
  *  Vision only: network tags ("Cafe_Guest · ch 36 · −52 dBm · Open"), towers, anchor, Internet, satellites.
  *  Simulation truth (view ≠ belief) only: what the copy sees. The phone could not know this (P5).
  */
-import { LAYOUT, type SimSnapshot, type TrustView } from '../../engine/index';
-import { badge, fmtDb, fmtMs, fmtS, NET_NAME, type Tier } from '../tokens';
+import { LAYOUT, VENUE, type SimSnapshot, type TrustView } from '../../engine/index';
+import { ANON_KIND, badge, fmtDb, fmtMs, fmtS, NET_NAME, netFacts, wifiGen, type Tier } from '../tokens';
 import type { LabelItem, V3 } from '../scene/labels';
 import { driver } from '../driver';
 import { anchorPos, copyOn, geoSat, isOnWifi, leoSat, realNet, visibleTx } from './NetworkLayer';
@@ -15,6 +15,7 @@ const w3 = (x: number, y: number, h = 0): V3 => [x, h, -y];
 const TX = LAYOUT.transmitters;
 const SEC: Record<string, string> = { OPEN: 'Open', WEP: 'WEP', 'WPA-TKIP': 'WPA/TKIP', OWE: 'Enhanced Open', 'WPA2-PSK': 'WPA2', 'WPA2/3': 'WPA2/3', 'WPA2-ENT': 'WPA2-Enterprise', 'WPA3-SAE': 'WPA3', 'WPA3-ENT': 'WPA3-Enterprise' };
 const ANON_DOTS = 48; // nearest anonymous networks drawn as dots (Vision); the rest are only counted
+const ANON_FACTS = 3; // of those, the nearest measured ones (hall) also say what they are
 
 function trustFor(s: SimSnapshot, t: (typeof TX)[number]): TrustView | undefined {
   if (t.kind === 'cell') return s.infinet.trust[`cell:${t.net}`];
@@ -46,9 +47,15 @@ export function worldLabels(s: SimSnapshot, view: string, vision: boolean): Labe
   const out: LabelItem[] = [];
   const scan = new Map(s.scan.map((e) => [e.bssid, e]));
   const desert = s.zone === 'desert';
+  const hall = s.zone === 'hall';
+  // the hall has dozens of venue APs: tag only the few loudest where you stand (the rest still pulse their rings)
+  const hallTags = hall ? new Set(visibleTx(s).filter((t) => t.kind === 'wifi')
+    .map((t) => ({ id: t.id, r: (t.bssid ? scan.get(t.bssid)?.rssiDbm : undefined) ?? -999 }))
+    .sort((a, b) => b.r - a.r).slice(0, 4).map((x) => x.id)) : null;
 
   if (vision) {
     for (const t of visibleTx(s)) {
+      if (hallTags && t.kind === 'wifi' && !hallTags.has(t.id)) continue;
       const tv = trustFor(s, t);
       if (t.kind === 'cell') {
         const link = s.links.find((l) => l.id === `cell:${t.net}`);
@@ -66,15 +73,15 @@ export function worldLabels(s: SimSnapshot, view: string, vision: boolean): Labe
         node: (
           <div className={`ntag wifi ${t.attacker && view !== 'belief' ? 'threat' : ''}`}>
             <span className="dot" /><span className="n">{ssid}</span>
-            <span className="d">ch {e?.channel ?? t.channel ?? '—'} · {fmtDb(e?.rssiDbm)} · {SEC[e?.security ?? t.security ?? ''] ?? '—'}</span>
+            <span className="d">ch {e?.channel ?? t.channel ?? '—'} · {fmtDb(e?.rssiDbm)} · {SEC[e?.security ?? t.security ?? ''] ?? '—'}{t.std ? ` · ${wifiGen(t.std)}` : ''}</span>
             {tv && <Badge tier={tv.tier} />}
           </div>
         ),
       });
     }
-    out.push({ key: 'anchor', pos: anchorPos(desert), z: 1, node: <div className="ntag tunnel"><span className="dot" /><span className="n">Anchor server</span><span className="d">the tunnel ends here</span></div> });
+    out.push({ key: 'anchor', pos: anchorPos(s.zone), z: 1, node: <div className="ntag tunnel"><span className="dot" /><span className="n">Anchor server</span><span className="d">the tunnel ends here</span></div> });
     if (!desert) {
-      const a = LAYOUT.visual.internet.pos;
+      const a = (hall ? LAYOUT.visual.internetHall ?? LAYOUT.visual.internet : LAYOUT.visual.internet).pos;
       out.push({ key: 'inet', pos: w3(a[0], a[1], 26), z: 1, node: <div className="ntag wired"><span className="dot" /><span className="n">Internet</span></div> });
     } else {
       const leoUp = s.truth.uplink === 'LEO' && !s.truth.leoOutage, geoUp = s.truth.uplink === 'GEO';
@@ -89,12 +96,22 @@ export function worldLabels(s: SimSnapshot, view: string, vision: boolean): Labe
   // live networks from the laptop's scanner (spec §6), placed where they were first heard. Demo hotspots
   // (Infinet-Demo-…) are named, in both views; everyone else is an anonymous dot, in Vision only.
   const [wx, wy] = s.player.pos;
-  const anon = s.scan.filter((e) => e.pos && ((e.live && e.anon) || e.net === 'flood'))
+  const anon = s.scan.filter((e) => e.pos && ((e.live && e.anon) || e.net === 'flood' || e.net === 'hotspot' || e.net === 'device'))
     .sort((a, b) => Math.hypot(a.pos![0] - wx, a.pos![1] - wy) - Math.hypot(b.pos![0] - wx, b.pos![1] - wy)).slice(0, ANON_DOTS);
   if (vision) {
+    let told = 0;
     for (const e of anon) {
-      const flood = e.net === 'flood';
-      out.push({ key: `anon:${e.bssid}`, pos: w3(e.pos![0], e.pos![1], 1.0), z: 0, node: <div className={`adot ${flood ? 'flood' : ''}`} title={flood ? 'Fake beacon from the flood (simulation): never joined' : "Someone else's network: anonymous, never joined"} /> });
+      const flood = e.net === 'flood', kind = e.kindHint;
+      const what = flood ? 'Fake beacon from the flood (simulation): never joined' : `${kind ? ANON_KIND[kind] : "Someone else's network"}: anonymous, never joined`;
+      // the few nearest measured networks say what they are (their facts as our survey heard them, never a name)
+      const facts = kind && told < ANON_FACTS ? netFacts(e, SEC) : '';
+      if (facts) told++;
+      out.push({
+        key: `anon:${e.bssid}`, pos: w3(e.pos![0], e.pos![1], kind === 'hotspot' ? 1.3 : kind === 'device' ? 1.6 : 1.0), z: 0,
+        node: facts
+          ? <div className="atag"><span className={`adot ${kind === 'device' ? 'dev' : ''}`} /><span className="n">{ANON_KIND[kind!]}</span><span className="d">{facts} · {fmtDb(e.rssiDbm)}</span></div>
+          : <div className={`adot ${flood ? 'flood' : kind === 'device' ? 'dev' : ''}`} title={what} />,
+      });
     }
     const fp = s.truth.floodPos;
     if (fp && view !== 'belief') out.push({ key: 'flooder', pos: w3(fp[0], fp[1], 2.0), z: 2, node: <div className="ntag wifi threat"><span className="dot" /><span className="n">Beacon flooder</span><span className="d">simulation view · dozens of fake names</span></div> });
@@ -116,7 +133,7 @@ export function worldLabels(s: SimSnapshot, view: string, vision: boolean): Labe
 
   // trust hologram (both views)
   for (const tv of Object.values(s.infinet.trust)) {
-    if (tv.net.startsWith('cell') || !tv.steps.length) continue;
+    if (tv.net.startsWith('cell') || !tv.steps.length || tv.follows) continue; // a venue AP that shares its lead's check: one hologram
     const recent = tv.decidedT !== undefined && s.t - tv.decidedT < 12 && (tv.firstSeenT > 0.5 || !!tv.live);
     if (!(tv.tier === 'checking' || tv.tier === 'blocked' || recent)) continue;
     if (tv.live) {
@@ -157,6 +174,24 @@ export function worldLabels(s: SimSnapshot, view: string, vision: boolean): Labe
   const inf = s.infinet;
   if (isOnWifi(s.policies.infinet) && !!s.policies.infinet?.wifiAssoc && inf.ttlS !== undefined && inf.ttlS < 10 && inf.edgePoint) {
     out.push({ key: 'edge', pos: w3(inf.edgePoint[0], inf.edgePoint[1], 0.6), z: 2, node: <div className="edgetag">Wi-Fi edge ahead · <b>{fmtS(inf.ttlS)}</b></div> });
+  }
+
+  // the venue: area names (Vision), our stand (always), and where we measured (Vision, nearby)
+  if (hall && VENUE) {
+    for (const l of VENUE.plan.labels) {
+      if (!l.ours && !vision) continue;
+      if (l.ours && Math.hypot(l.at[0] - wx, l.at[1] - wy) < 6) continue; // you are there: the label would sit on the camera
+      out.push({ key: `zl:${l.text}`, pos: w3(l.at[0], l.at[1], l.h ?? 3), z: l.ours ? 2 : 0, node: <div className={`zlabel ${l.ours ? 'ours' : ''}`}>{l.text}</div> });
+    }
+    if (vision) {
+      const seen = new Set<string>();
+      const pts = VENUE.survey.points.filter((p) => { const k = `${p.pos[0]},${p.pos[1]}`; if (seen.has(k)) return false; seen.add(k); return true; })
+        .map((p) => ({ p, d: Math.hypot(p.pos[0] - wx, p.pos[1] - wy) })).filter((x) => x.d < 28).sort((a, b) => a.d - b.d).slice(0, 8);
+      for (const { p } of pts) {
+        const best = Math.max(...VENUE.survey.points.filter((q) => q.pos[0] === p.pos[0] && q.pos[1] === p.pos[1]).map((q) => q.bestDbm));
+        out.push({ key: `sv:${p.pos[0]},${p.pos[1]}`, pos: w3(p.pos[0], p.pos[1], 0.3), z: 0, node: <div className="smark" title={`Our survey, ${VENUE.survey.date}: strongest venue AP measured here`}>{fmtDb(best)} measured</div> });
+      }
+    }
   }
 
   // you (Vision only: the world is busy, so say where you are)

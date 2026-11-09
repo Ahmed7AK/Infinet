@@ -166,6 +166,7 @@ export const PARAMS = {
   typicalRttSatMs: p(650, 'Spec §4: about 0.6 s on GEO satellite (IIUM 2026: 600–700 ms clear sky); a satellite link is judged by its worst normal case'),
   canaryRtts: p(2, 'Spec §4: canaries run in parallel with the probe; the TLS and portal canaries need TCP + TLS 1.3, 2 round trips'),
   unreachableRetryS: p(15, 'ASSUMPTION: an Unreachable network is checked again after 15 s (spec §2: "the check retries later")'),
+  portalRetryS: p(120, 'ASSUMPTION: a network that shows a sign-in page is checked again after 2 min (signing in is the user\'s call; re-checking every 15 s would only keep the radio busy)'),
   authFailPackets: p(1, 'Spec §2: one or more probe packets that arrive but fail authentication give Blocked (WireGuard drops them silently; the probe counts them)'),
   floodNewNames: p(8, 'ASSUMPTION (spec §6 leaves N open): 8 or more new names within the flood window raise the flood alert'),
   floodWindowS: p(5, 'ASSUMPTION: the flood alert counts new names over the last 5 s of scans'),
@@ -178,6 +179,9 @@ export const PARAMS = {
   uplinkFloodLoss: p(0.3, 'ASSUMPTION: about 30 % of packets dropped at the congested uplink'),
   uplinkFloodJitterMs: p(40, 'ASSUMPTION: extra jitter from the full queue'),
   wifiReturnRttMarginMs: p(150, 'ASSUMPTION: Infinet returns to a Wi-Fi only if its median probe round trip (last 10, after it was left for congestion) is within 150 ms of the current 5G'),
+  wifiReturnHoldS: p(4, 'ASSUMPTION: after leaving a Wi-Fi, Infinet waits at least 4 s before the call goes back to it (it must also be voice-grade for 2 s)'),
+  wifiFlapMaxHoldS: p(60, 'ASSUMPTION (route flap damping, cf. RFC 2439): each time the call has to leave the same Wi-Fi again, the wait doubles, up to 60 s'),
+  wifiFlapResetS: p(30, 'ASSUMPTION: a Wi-Fi that carried the call for 30 s without trouble starts again from the shortest wait'),
   wifiReturnMaxLoss: p(0.25, 'ASSUMPTION: ...and at most 25 % of those probes were lost (a busy café loses a few %, a flooded uplink about half)'),
 
   liveProbeS: p(1.2, 'Live hotspots: the probe is simulated and takes a join (assocPskMs 50–200 ms) + DHCP (median ≈ 0.95 s, dhcpS) + 2 round trips'),

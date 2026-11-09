@@ -51,9 +51,9 @@ export function LabelLayer() {
         let px = x, py = y;
         const w = el.offsetWidth * k, h = el.offsetHeight * k;
         if (it.card) {
-          // a card floats above its point, kept clear of the HUD (strip on top, phone bottom-right, map bottom-left)
+          // a card floats above its point, kept clear of the HUD (title, chips and strip on top, phone bottom-right, map bottom-left)
           if (it.card === 'above') { px = x - w / 2; py = y - h - 18 * k; } else { px = x + 24 * k; py = y + 12 * k; }
-          const safeT = 120 * k, safeB = camRef.h - 150 * k, safeR = camRef.w - 0.27 * camRef.w;
+          const safeT = 196 * k, safeB = camRef.h - 150 * k, safeR = camRef.w - 0.27 * camRef.w;
           px = Math.min(Math.max(px, 24 * k), safeR - w);
           py = Math.min(Math.max(py, safeT), safeB - h);
         } else { px = x - w / 2; py = y - h; }

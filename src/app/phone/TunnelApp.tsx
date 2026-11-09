@@ -7,17 +7,17 @@
  * While switching, the call rides two tunnels at once, one per road, and the anchor drops the copies (D3).
  * If the anchor stops answering, Infinet fails closed: nothing leaves the tunnel, messages wait (§5, D2).
  */
-import type { SimSnapshot, Tier, TrustView } from '../../engine/index';
+import { mobileWord, type SimSnapshot, type Tier, type TrustView } from '../../engine/index';
 import { badge, fmtMs, pathName, tech, ui } from '../tokens';
 
 type RoadState = 'carrying' | 'standby' | 'checking' | 'blocked' | 'unreachable';
 interface Road { id: string; label: string; kind: 'wifi' | 'cell' | 'sat'; tier: Tier; state: RoadState }
 
-const KIND_WORD = { wifi: 'Wi-Fi', cell: '5G', sat: 'Satellite' } as const;
+const kindWord = (k: Road['kind']) => (k === 'cell' ? mobileWord() : k === 'wifi' ? 'Wi-Fi' : 'Satellite');
 const STAGES = ['Appears', 'Screen', 'Quarantine', 'Verdict', 'Roam'] as const;
 
 /** the box already says 5G / Wi-Fi, so the name drops it: "Cellular A", "Office Wi-Fi" */
-const roadName = (p: string) => pathName(p).replace(/^5G \((.*)\)$/, '$1');
+const roadName = (p: string) => pathName(p).replace(/^[45]G \((.*)\)$/, '$1');
 
 function kindOf(path: string): Road['kind'] {
   return path.startsWith('cell:') ? 'cell' : path === 'wifi:site-net' ? 'sat' : 'wifi';
@@ -165,7 +165,7 @@ function RoadView({ r, x, i, anchorLost }: { r: Road; x: number; i: number; anch
       {/* the network */}
       <g transform={`translate(${net.x},${net.y})`}>
         <rect x={-46} y={-18} width={92} height={36} rx={10} fill="#141922" stroke={r.state === 'blocked' ? tech.threat : kindC} strokeOpacity={r.state === 'blocked' ? 0.8 : 0.6} />
-        <text y={-3} fill={kindC} fontSize={10.5} textAnchor="middle" fontFamily="JetBrains Mono" letterSpacing="0.06em">{KIND_WORD[r.kind].toUpperCase()}</text>
+        <text y={-3} fill={kindC} fontSize={10.5} textAnchor="middle" fontFamily="JetBrains Mono" letterSpacing="0.06em">{kindWord(r.kind).toUpperCase()}</text>
         <text y={11} fill={ui.text} fontSize={12} textAnchor="middle" fontWeight={600}>{r.label.length > 13 ? `${r.label.slice(0, 12)}…` : r.label}</text>
       </g>
       <g transform={`translate(${net.x},${net.y + 32})`}>

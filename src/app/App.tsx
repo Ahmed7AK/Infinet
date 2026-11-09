@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
-import { CREDITS_APP, driver, NOTES_APP, useUi, type Playable } from './driver';
+import { CREDITS_APP, driver, NOTES_APP, SCENE_ORDER, useUi, type Playable } from './driver';
 import { World } from './scene/World';
 import { LabelLayer } from './scene/labels';
 import { Hud, useStageScale } from './ui/Hud';
 import { APPS, LAB, Phone } from './phone/Phone';
 import { Loader } from './ui/Loader';
 
-const TRAVEL: Record<string, Playable> = { Digit1: 'building-exit', Digit2: 'cafe-twin', Digit3: 'desert-sat', Digit4: 'desert-sat' };
+const TRAVEL: Record<string, Playable> = { Digit1: 'building-exit', Digit2: 'cafe-twin', Digit3: 'desert-sat', Digit4: SCENE_ORDER[3] ?? 'desert-sat' };
 
 function onKeyDown(e: KeyboardEvent) {
   if (e.repeat && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) { if (/^Key[WASD]$/.test(e.code)) return; }
@@ -31,6 +31,7 @@ function onKeyDown(e: KeyboardEvent) {
 
   // phone
   if (c === 'KeyM' && !e.repeat) driver.skipToMoment();
+  if (c === 'KeyL' && !e.repeat) driver.signIn();
   const arrows: Record<string, number> = { ArrowUp: -3, ArrowDown: 3, ArrowLeft: -1, ArrowRight: 1 };
   if (c in arrows || c === 'Enter' || ((c === 'Backspace' || c === 'Escape') && ui.phoneUp)) driver.touchPhone();
   if (c in arrows) {

@@ -64,6 +64,16 @@ await page.waitForTimeout(1500);
 check('tour moves on to the desert', (await sceneAt()) === 'desert-sat');
 await page.evaluate(() => (globalThis as any).__infinet.driver.fastForward(97.2));
 await page.waitForTimeout(1500);
+if ((await sceneAt()) === 'venue-hall') {
+  // booth build: the tour ends in our hall and signs in to the venue Wi-Fi itself
+  check('tour moves on to our hall (booth build)', true);
+  await page.evaluate(() => (globalThis as any).__infinet.driver.fastForward(14));
+  await page.waitForTimeout(500);
+  const path = await page.evaluate(`globalThis.__infinet.useUi.getState().snap.policies.infinet.activePath`);
+  check('the tour signs in and the call moves onto the venue Wi-Fi', path === 'wifi:venue-free', String(path));
+  await page.evaluate(() => (globalThis as any).__infinet.driver.fastForward(30.2));
+  await page.waitForTimeout(1500);
+}
 check('tour ends back in free roam', (await modeAt()) === 'free');
 
 // Attract: shorten the idle timer

@@ -10,11 +10,12 @@ import {
   type PolicyView, type ScanEntry, type ScenarioId, type SimEvent, type SimSnapshot, type Vec2, type ZoneId,
 } from './types';
 import { LAYOUT, regionAt, txById, zoneAt, type Transmitter } from './world/layout';
+import { VENUE } from './world/venue';
 import { buildMaps, cellTruthAt, detWifi, type MapSet } from './maps/rfmaps';
 import { sinrDb } from './radio/propagation';
 import { nrLossFromSinr, SatelliteState, wifiLossFromSnr, wifiRetryDelayMs, type PathTruth } from './links/paths';
 import { FastFading, PositionEstimate, type CellMeas, type Observations } from './observe/observe';
-import { Agent, NET_LABEL, netOf, type Ctx } from './policies/agent';
+import { Agent, NET_LABEL, netOf, setMobileWord, type Ctx } from './policies/agent';
 import { B1, B2, B3 } from './policies/baselines';
 import { Infinet } from './policies/infinet';
 import { RouteFollower, routeFor, SCENARIOS, type Scenario } from './scenario/scenarios';
@@ -25,8 +26,10 @@ export * from './types';
 export { PARAMS, VISUAL_NOTES } from './params';
 export { SCENARIOS, MUST_SCENARIOS } from './scenario/scenarios';
 export { LAYOUT } from './world/layout';
+export { registerVenue, hasVenue, VENUE, type HallArt, type VenueFile, type VenuePlan } from './world/venue';
 export { geoLookAngle } from './geo';
 export { displayName, skeleton, utf8Hex, redFlags, screen, decideTier } from './trust/trust';
+export { mobileWord } from './policies/agent';
 
 /** One network from the live hotspot scanner (spec §6), already cleaned by the scanner: raw name as hex, display
  *  name sanitised, other people's networks anonymised (no name, salted-hash BSSID). */
@@ -148,6 +151,7 @@ class SimImpl implements Sim {
     this.posEst = new PositionEstimate(seed);
     this.mode = opts.mode ?? 'scripted';
     const def = this.scenarioDef ?? SCENARIOS['building-exit'];
+    setMobileWord(LAYOUT.transmitters.some((t) => t.kind === 'cell' && t.zone === def.zone && t.rat === 'LTE') ? '4G' : '5G');
     this.durationS = def.durationS;
     this.follower = routeFor(def, this.lab.walkSpeed);
     if (opts.startOffsetS) this.follower.startT += opts.startOffsetS;
@@ -200,6 +204,7 @@ class SimImpl implements Sim {
     const prev = this.lab;
     const prevStale = this.lab.mapStaleness;
     this.lab = { ...this.lab, ...lab };
+    for (const net of lab.signedIn ?? []) if (!(prev.signedIn ?? []).includes(net)) this.emit({ t: this.t, type: 'portal.signin', net, label: NET_LABEL[net] ?? net });
     for (const [k, attack] of LAB_ATTACKS) {
       if (lab[k] !== undefined && lab[k] !== prev[k]) this.emit({ t: this.t, type: lab[k] ? 'attack.on' : 'attack.off', attack });
     }
@@ -334,6 +339,28 @@ class SimImpl implements Sim {
     this.flood.shown = now;
     return out;
   }
+  /** hotspots fitted from the venue survey: log-distance at phone height, with a few dB of flutter per scan */
+  private hotspotScan(t: number, pos: Vec2): ScanEntry[] {
+    const hs = VENUE!.hotspots, out: ScanEntry[] = [];
+    const tick = Math.round(t * 10);
+    for (const h of hs.list) {
+      // on air or not for this run: one draw per network from the seed (a snapshot of who has a hotspot on)
+      if (h.onAir !== undefined && crn(this.seed, hashString(h.id), 45) >= h.onAir) continue;
+      // the survey phone was held at 1.2 m: the same geometry the fit used (tools/venue/build.ts)
+      const d = Math.max(1, Math.hypot(pos[0] - h.pos[0], pos[1] - h.pos[1], (h.h ?? 1.2) - 1.2));
+      const pl0 = h.band === '2.4' ? v('wifiPl1m2GHz') : v('wifiPl1m5GHz');
+      const r = h.eirpDbm - pl0 - 10 * hs.plExp * Math.log10(d) + 2 * v('wifiFastFadeSigmaDb') * (crn(this.seed, hashString(h.id), tick, 44) - 0.5);
+      if (r <= hs.floorDbm) continue;
+      if (!this.firstSeen.has(h.id)) this.firstSeen.set(h.id, t);
+      const kind = h.kind ?? 'hotspot';
+      out.push({
+        bssid: h.id, ssid: '', ssidHex: '', net: kind, security: h.security ?? 'WPA2-PSK', pmf: h.pmf ?? 'none', channel: h.channel, band: h.band,
+        rssiDbm: r, anon: true, pos: h.pos, kindHint: kind, std: h.std, bwMHz: h.bwMHz, ...(h.name ? { nameKey: `venue-${kind}:${h.name}` } : {}),
+      });
+    }
+    return out;
+  }
+
   private stopFlood() {
     for (const b of this.flood.shown) this.firstSeen.delete(b);
     this.flood = { placed: false, pos: [0, 0], startT: 0, shown: new Set() };
@@ -470,8 +497,21 @@ class SimImpl implements Sim {
         if (dup >= 0 && scan[dup].rssiDbm >= meas) continue;
         const entry: ScanEntry = { bssid: id.bssid, ssid: tx.ssid!, ssidHex: this.hexOf(tx.ssid!), net: tx.net, security: id.security, pmf: tx.pmf ?? 'none', channel: tx.channel ?? 36, band: tx.band ?? '5', rssiDbm: meas };
         if (dup >= 0) scan[dup] = entry; else scan.push(entry);
+        // the radio's other networks (a venue AP broadcasts several): same radio, beacons a moment apart
+        if (tx.alias) {
+          const tick = Math.round(t * 10);
+          for (let ai = 0; ai < tx.alias.length; ai++) {
+            const a = tx.alias[ai];
+            const m2 = meas + 2 * (crn(this.seed, hashString(a.bssid), tick, 43) - 0.5);
+            if (m2 <= -92) continue;
+            if (!this.firstSeen.has(a.bssid)) this.firstSeen.set(a.bssid, t);
+            scan.push({ bssid: a.bssid, ssid: '', ssidHex: '', net: 'venue-other', security: a.security, pmf: 'none', channel: tx.channel ?? 36, band: tx.band ?? '5', rssiDbm: m2, anon: true, nameKey: `${tx.net}:${ai}` });
+          }
+        }
       }
     }
+    // the crowd's phone hotspots (venue scene): anonymous dots, never named, never joined
+    if (VENUE && zoneAt(pos) === 'hall') for (const e of this.hotspotScan(t, pos)) scan.push(e);
     if (this.lab.beaconFlood) for (const e of this.floodScan(t, pos, bestByNet)) scan.push(e);
     for (const e of this.liveScan()) scan.push(e);
     const byBssid = new Map(scan.map((e) => [e.bssid, e] as const));
@@ -523,7 +563,7 @@ class SimImpl implements Sim {
       owd += v('internetOwdMs');
       paths.set(`wifi:${net}`, {
         id: `wifi:${net}`, kind: 'wifi', label: NET_LABEL[net] ?? net, up: rssi > -92, owdMs: owd, jitterMs: jitter, loss: Math.min(1, loss), hops,
-        rssiDbm: rssi, snrDb: snr, ipEpoch, uplink, attacker: !!tx.attacker, captivePortal: !!tx.captivePortal, security: tx.id === 'twin' ? this.twinIdent(tx).security : tx.security,
+        rssiDbm: rssi, snrDb: snr, ipEpoch, uplink, attacker: !!tx.attacker, captivePortal: !!tx.captivePortal && !(this.lab.signedIn ?? []).includes(net), security: tx.id === 'twin' ? this.twinIdent(tx).security : tx.security,
         udpBlocked: net === 'cafe-guest' && this.lab.cafeBlocksUdp,
       });
     }
@@ -535,10 +575,15 @@ class SimImpl implements Sim {
 
     // cellular paths + measurements
     const cell = new Map<string, CellMeas>();
+    // one operator can have a site in each scene: the phone camps on the strongest one of each network
+    const bestCell = new Map<string, { tx: Transmitter; rsrp: number; o2i: number }>();
     for (const m of this.maps.byTx.values()) {
-      const tx = m.tx;
-      if (tx.kind !== 'cell') continue;
-      const { rsrp, o2i } = cellTruthAt(m, pos);
+      if (m.tx.kind !== 'cell') continue;
+      const c = cellTruthAt(m, pos);
+      const cur = bestCell.get(m.tx.net);
+      if (!cur || c.rsrp > cur.rsrp) bestCell.set(m.tx.net, { tx: m.tx, ...c });
+    }
+    for (const { tx, rsrp, o2i } of bestCell.values()) {
       const sinr = sinrDb(rsrp, o2i);
       const loss = rsrp < -125 ? 1 : nrLossFromSinr(sinr);
       const owd = v('nrRadioOwdMs') + v('nrCoreOwdMs') + v('internetOwdMs') + (sinr < 3 ? 8 * (3 - sinr) / 3 : 0);

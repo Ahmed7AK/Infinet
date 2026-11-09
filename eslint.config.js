@@ -3,7 +3,7 @@ import tseslint from 'typescript-eslint';
 // Rule 3 of the plan: the engine is pure TypeScript. It must never import three, react or the DOM,
 // so the same code drives the live demo and the Node batch runner.
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'results', 'tools/scanner-mac/build'] },
+  { ignores: ['dist', 'node_modules', 'results', 'tools/scanner-mac/build', 'venue-private'] },
   ...tseslint.configs.recommended,
   {
     files: ['src/engine/**/*.ts'],

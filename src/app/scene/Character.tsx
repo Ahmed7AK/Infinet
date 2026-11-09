@@ -12,7 +12,7 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { LAYOUT, type Vec2 } from '../../engine/index';
+import { LAYOUT, VENUE, type Vec2 } from '../../engine/index';
 import { driver, useUi } from '../driver';
 import { useModel } from './assets';
 import { crowd } from './crowd';
@@ -267,6 +267,7 @@ function Contact({ r, opacity = 0.42 }: { r: number; opacity?: number }) {
 /** sidewalks are a 12 cm step up from the road (drawn on past both ends of the street); the desert site stands on a 16 cm concrete pad */
 const SW = [[2, 8], [24, 30]];
 export function groundAt(p: Vec2) {
+  if (p[0] > 30000) return 0.02; // the venue hall: event carpet on the concrete floor
   if (p[0] > 10000) return 0.16;
   if (p[1] < 300 && p[1] > -440 && SW.some(([a, b]) => p[0] >= a && p[0] <= b)) return 0.12;
   if (p[0] >= 8 && p[0] <= 24 && p[1] < 300 && p[1] > -440) return 0.0;
@@ -356,6 +357,19 @@ const NPCS: Record<'office' | 'street' | 'desert', Npc[]> = {
   ],
 };
 const SEATED: ReadonlySet<Act> = new Set(['sit', 'sit_table', 'sit_think', 'sit_look', 'sit_relax']);
+
+/**
+ * The venue hall's crowd comes from the venue file (where people stand, sit and walk on show day); each gets one of
+ * the casual-dress people, spread so neighbours differ. Staff and site workers keep their own scenes.
+ */
+const CASUAL: Who[] = (Object.keys(PEOPLE) as Who[]).filter((w) => /^(street|cafe|office)_/.test(w));
+const HALL_ACTS: ReadonlySet<string> = new Set(['idle', 'look', 'talk', 'text', 'sit', 'sit_table', 'sit_think', 'sit_look', 'sit_relax', 'drink', 'wait', 'listen', 'work', 'work_mid', 'crouch']);
+const HALL_NPCS: Npc[] = (VENUE?.plan.people ?? []).map((p, i) => ({
+  who: CASUAL[(i * 7) % CASUAL.length],
+  at: p.at, face: p.face,
+  act: (HALL_ACTS.has(p.act) ? p.act : 'idle') as Act,
+  walk: p.walk ? { path: p.walk.path, speed: p.walk.speed, pause: p.walk.pause } : undefined,
+}));
 const ROAD_X: [number, number] = [LAYOUT.street.road[0][0], LAYOUT.street.road[1][0]];
 
 /** a walker's state along its path: distance from the start, direction, and the seconds left to stand */
@@ -376,6 +390,13 @@ const compassOf = (dx: number, dy: number) => (Math.atan2(dx, dy) * 180) / Math.
 
 /** people further than this from the camera are hidden and not animated (they still walk their paths) */
 const CULL_M = 70;
+/** the hall is one big crowded room: draw and animate only the people near the camera */
+const CULL_HALL_M = 36;
+/** … and only those this close to you cast shadows (the overhead light's shadow reaches about 14 m) */
+const SHADOW_HALL_M = 15;
+/** the camera's view volume, refreshed once a frame, and a person's bounding sphere (skinned bounds are the bind pose) */
+const frustum = new THREE.Frustum(), viewProj = new THREE.Matrix4(), body = new THREE.Sphere(new THREE.Vector3(), 1.3);
+let frustumAt = -1;
 
 function Person({ n, id }: { n: Npc; id: string }) {
   const obj = usePerson(n.who);
@@ -402,6 +423,8 @@ function Person({ n, id }: { n: Npc; id: string }) {
   const st = useRef<{ d: number; sgn: number; wait: number; yaw: number; side: number; moving: number; init: boolean } | null>(null);
   const path = useMemo(() => (n.walk ? { pts: n.walk.path, cum: pathLen(n.walk.path) } : null), [n]);
   useEffect(() => () => { crowd.onRoad.delete(id); }, [id]);
+  const shadowOn = useRef(true);
+  const attached = useRef(true);
   useFrame((state, dtRaw) => {
     const grp = g.current;
     if (!grp) return;
@@ -462,8 +485,25 @@ function Person({ n, id }: { n: Npc; id: string }) {
     }
     // cull far away people (and skip their animation)
     const cam = state.camera.position;
-    const far = Math.hypot(cam.x - pos[0], cam.z + pos[1]) > CULL_M;
+    const hall = pos[0] > 30000;
+    let far = Math.hypot(cam.x - pos[0], cam.z + pos[1]) > (hall ? CULL_HALL_M : CULL_M);
+    if (hall && !far) {
+      // skinned people skip frustum culling (their bounds are the bind pose), so in the crowded hall cull them
+      // here against the view (a sphere round the body), and only people near you cast the overhead shadows
+      if (frustumAt !== state.clock.elapsedTime) {
+        frustumAt = state.clock.elapsedTime;
+        state.camera.updateMatrixWorld();
+        frustum.setFromProjectionMatrix(viewProj.multiplyMatrices(state.camera.projectionMatrix, state.camera.matrixWorldInverse));
+      }
+      body.center.set(pos[0], 0.9, -pos[1]);
+      far = !frustum.intersectsSphere(body);
+      const pl = driver.snap.player.pos;
+      const near = Math.hypot(pl[0] - pos[0], pl[1] - pos[1]) < SHADOW_HALL_M;
+      if (near !== shadowOn.current) { shadowOn.current = near; obj.traverse((o) => { if ((o as THREE.Mesh).isMesh && !/opacity/i.test(((o as THREE.Mesh).material as THREE.Material).name)) o.castShadow = near; }); }
+    }
     grp.visible = !far;
+    // three.js updates the matrices of hidden objects too: take a culled person's skeleton out of the graph
+    if (far === attached.current) { attached.current = !far; if (far) grp.remove(obj); else grp.add(obj); }
     if (!far) rig.mx.update(dt);
   });
   const y = groundAt(n.at) + (n.lift ?? 0);
@@ -477,7 +517,7 @@ function Person({ n, id }: { n: Npc; id: string }) {
 }
 
 export function People({ zone }: { zone: string }) {
-  const list = zone === 'desert' ? NPCS.desert : [...NPCS.office, ...NPCS.street];
+  const list = zone === 'desert' ? NPCS.desert : zone === 'hall' ? HALL_NPCS : [...NPCS.office, ...NPCS.street];
   return (
     <>
       <Player />

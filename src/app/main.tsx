@@ -1,3 +1,5 @@
+// first: the private venue (if this checkout has it) joins the layout before the scene and the sim are built
+import './venueLoad';
 import '@fontsource/inter/latin-400.css';
 import '@fontsource/inter/latin-500.css';
 import '@fontsource/inter/latin-600.css';

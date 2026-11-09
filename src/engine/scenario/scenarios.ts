@@ -21,11 +21,12 @@ export interface Scenario {
   captions: Caption[];
 }
 
-export const SCENARIOS: Record<Exclude<ScenarioId, 'free'>, Scenario> = {
+/** the venue scene ('venue-hall') is added by registerVenue (world/venue.ts) when the private venue file exists */
+export const SCENARIOS = {
   'building-exit': buildingExit as Scenario,
   'cafe-twin': cafeTwin as Scenario,
   'desert-sat': desertSat as Scenario,
-};
+} as Record<Exclude<ScenarioId, 'free'>, Scenario>;
 
 export const MUST_SCENARIOS: Array<Exclude<ScenarioId, 'free'>> = ['building-exit', 'cafe-twin', 'desert-sat'];
 

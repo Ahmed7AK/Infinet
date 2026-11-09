@@ -14,8 +14,9 @@ import { Line } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { geoLookAngle, LAYOUT, PARAMS, type PolicyView, type SimSnapshot, type Vec2 } from '../../engine/index';
+import { geoLookAngle, LAYOUT, PARAMS, type PolicyView, type SimSnapshot, type Vec2, type ZoneId } from '../../engine/index';
 import { leoPassAzEl } from '../../engine/geo';
+import { sceneOf, txScene } from '../../engine/world/layout';
 import { driver, useUi } from '../driver';
 import { tech, THRESH } from '../tokens';
 import { useModel } from '../scene/assets';
@@ -38,21 +39,28 @@ export function skyPos(base: V3, azDeg: number, elDeg: number, r: number): V3 {
 const leoPass = (s: SimSnapshot, ph = 0.15 + 0.7 * s.truth.leoBoundaryPhase) => leoPassAzEl(ph, (s.truth.leoSatIndex * 67) % 360, 72);
 export function leoSat(s: SimSnapshot): V3 { const { azDeg, elDeg } = leoPass(s); return skyPos(terminalPos(), azDeg, elDeg, SAT_R.leo); }
 export function geoSat(): V3 { return skyPos(dishPos(), GEO_LOOK.azDeg, GEO_LOOK.elDeg, SAT_R.geo); }
-export const anchorPos = (desert: boolean): V3 => { const a = (desert ? LAYOUT.visual.anchorDesert : LAYOUT.visual.anchor).pos; return w3(a[0], a[1], 14); };
-const internetPos = (): V3 => { const a = LAYOUT.visual.internet.pos; return w3(a[0], a[1], 22); };
+/** each scene has its own anchor and Internet marker (the venue's come from its file) */
+export const anchorPos = (zone: ZoneId): V3 => {
+  const sc = sceneOf(zone);
+  const a = (sc === 'desert' ? LAYOUT.visual.anchorDesert : sc === 'hall' ? LAYOUT.visual.anchorHall ?? LAYOUT.visual.anchor : LAYOUT.visual.anchor).pos;
+  return w3(a[0], a[1], 14);
+};
+export const internetPos = (zone: ZoneId): V3 => { const a = (sceneOf(zone) === 'hall' ? LAYOUT.visual.internetHall ?? LAYOUT.visual.internet : LAYOUT.visual.internet).pos; return w3(a[0], a[1], 22); };
 const gatewayPos = (): V3 => { const a = LAYOUT.visual.gateway.pos; return w3(a[0], a[1], 6); };
 
 /** is this copy on the air? (the café copy and the desert copy are separate attacks) */
 export const copyOn = (s: SimSnapshot, t: (typeof TX)[number]) => (t.net === 'site-twin' ? s.truth.siteTwinOn : s.truth.attackerOn);
 /** the real network a copy imitates */
 export const realNet = (net: string) => (net === 'twin' ? 'cafe-guest' : net === 'site-twin' ? 'site-net' : net);
-export const visibleTx = (s: SimSnapshot) => TX.filter((t) => (s.zone === 'desert' ? t.pos[0] > 5000 : t.pos[0] < 5000)).filter((t) => !t.attacker || copyOn(s, t));
+export const visibleTx = (s: SimSnapshot) => TX.filter((t) => txScene(t) === sceneOf(s.zone)).filter((t) => !t.attacker || copyOn(s, t));
 
 /** where a path's radio hop ends, from the policy's own association */
 export function endpoint(path: string, pv?: PolicyView | null): V3 | null {
   const [kind, net] = path.split(':');
   if (kind === 'cell') {
-    const t = TX.find((x) => x.kind === 'cell' && x.net === net);
+    // the operator's site for this scene (the hall has its own)
+    const sc = sceneOf(driver.snap.zone);
+    const t = TX.find((x) => x.kind === 'cell' && x.net === net && txScene(x) === sc) ?? TX.find((x) => x.kind === 'cell' && x.net === net);
     return t ? w3(t.pos[0], t.pos[1], t.pos[2] - 1.5) : null;
   }
   const byBssid = pv?.wifiBssid ? TX.find((x) => x.bssid === pv.wifiBssid && x.net === net) : undefined;
@@ -63,14 +71,17 @@ export function endpoint(path: string, pv?: PolicyView | null): V3 | null {
 /** the hops after the radio: backhaul to the Internet and the anchor, or the satellite bent pipe */
 export function onward(path: string, s: SimSnapshot): V3[] {
   const desert = s.zone === 'desert';
+  const z = s.zone;
   if (path === 'wifi:site-net') {
     if (s.truth.uplink === 'none') return [];
     const sat = s.truth.uplink === 'GEO' ? geoSat() : leoSat(s);
     const term = s.truth.uplink === 'GEO' ? dishPos() : terminalPos();
-    return [term, sat, gatewayPos(), anchorPos(true)];
+    return [term, sat, gatewayPos(), anchorPos('desert')];
   }
-  if (path === 'wifi:twin' || path === 'wifi:site-twin') return s.truth.attackerMode === 'relay' ? (desert ? [anchorPos(true)] : [internetPos(), anchorPos(desert)]) : [];
-  return [internetPos(), anchorPos(desert)];
+  if (path === 'wifi:twin' || path === 'wifi:site-twin') return s.truth.attackerMode === 'relay' ? (desert ? [anchorPos(z)] : [internetPos(z), anchorPos(z)]) : [];
+  // the venue's APs reach the Internet through the hall's comms room
+  const idf = path.startsWith('wifi') && sceneOf(z) === 'hall' ? LAYOUT.visual.idfHall?.pos : undefined;
+  return [...(idf ? [w3(idf[0], idf[1], idf[2])] : []), internetPos(z), anchorPos(z)];
 }
 const phonePos = (s: SimSnapshot): V3 => w3(s.player.pos[0], s.player.pos[1], 1.28);
 export const isOnWifi = (pv?: PolicyView) => !!pv && (!!pv.activePath?.startsWith('wifi') || pv.dupPaths.some((p) => p.startsWith('wifi')));
@@ -277,12 +288,23 @@ function Beacons({ s }: { s: SimSnapshot }) {
 // ───────────── backhaul, Internet, anchor ─────────────
 function Backbone({ s }: { s: SimSnapshot }) {
   const desert = s.zone === 'desert';
-  const an = anchorPos(desert);
+  const an = anchorPos(s.zone);
   const lines: Array<{ k: string; pts: V3[]; c: THREE.Color; w: number; dashed?: boolean }> = [];
   if (!desert) {
-    const inet = internetPos();
+    const inet = internetPos(s.zone);
+    // the hall: each AP's cable rises to the tray under the roof, runs to the back wall and down to the comms room
+    const idf = sceneOf(s.zone) === 'hall' ? LAYOUT.visual.idfHall?.pos : undefined;
+    if (idf) {
+      const room = w3(idf[0], idf[1], idf[2]), tray = 12.4;
+      for (const t of visibleTx(s)) {
+        if (t.attacker || t.kind !== 'wifi') continue;
+        const top = w3(t.pos[0], t.pos[1], t.pos[2]);
+        lines.push({ k: `bh-${t.id}`, pts: [top, [top[0], tray, top[2]], [top[0], tray, room[2]], [room[0], tray, room[2]], room], c: hdr(tech.wired, 0.8), w: 1 });
+      }
+      lines.push({ k: 'idf-inet', pts: [room, inet], c: hdr(tech.wired, 1.1), w: 1.6 });
+    }
     for (const t of visibleTx(s)) {
-      if (t.attacker) continue;
+      if (t.attacker || (idf && t.kind === 'wifi')) continue;
       const top: V3 = t.kind === 'cell' ? w3(t.pos[0], t.pos[1], 2) : w3(t.pos[0], t.pos[1], t.pos[2]);
       // APs drop down the wall to the floor duct; towers run fibre from the base
       const foot: V3 = [top[0], 0.2, top[2]];
@@ -296,7 +318,7 @@ function Backbone({ s }: { s: SimSnapshot }) {
   return (
     <>
       {lines.map((l) => <Line key={l.k} points={l.pts} color={l.c} lineWidth={l.w} transparent opacity={0.8} dashed={l.dashed} />)}
-      {!desert && <mesh position={internetPos()}><icosahedronGeometry args={[2.2, 1]} /><meshBasicMaterial color={hdr(tech.wired, 1.6)} wireframe /></mesh>}
+      {!desert && <mesh position={internetPos(s.zone)}><icosahedronGeometry args={[2.2, 1]} /><meshBasicMaterial color={hdr(tech.wired, 1.6)} wireframe /></mesh>}
       <AnchorPillar at={an} />
     </>
   );

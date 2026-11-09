@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Infinet film cards</title>
+<!--
+  Animated cards for the judges' film (tools/record/film.ts). Served by the Vite dev server at /tools/film/cards.html;
+  never part of the app build. Deterministic: window.__card.show(name, data) builds a card, window.__card.render(t)
+  draws it at t seconds, so every frame is the same on every run. 1920 × 1080, the app's colours and fonts.
+-->
+<style>
+  :root {
+    --bg: #070a12; --panel: #0e1320; --line: rgba(255, 255, 255, 0.09); --text: #e8ecf3; --mute: #a3abb8; --dim: #6b7385;
+    --tunnel: #67e8f9; --check: #fbbf24; --threat: #f87171; --ok: #4ade80; --violet: #8e5bff;
+    --sans: 'Inter', system-ui, sans-serif; --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  #stage { position: absolute; inset: 0; overflow: hidden;
+    background: radial-gradient(1200px 700px at 70% 30%, #10203a 0%, rgba(16, 32, 58, 0) 70%), radial-gradient(900px 600px at 10% 90%, #1a1035 0%, rgba(26, 16, 53, 0) 70%), var(--bg); }
+  #stage::before { content: ''; position: absolute; inset: 0; opacity: 0.5;
+    background-image: radial-gradient(rgba(103, 232, 249, 0.18) 1.2px, transparent 1.4px); background-size: 36px 36px; }
+  .abs { position: absolute; }
+  .kicker { font: 600 20px/1 var(--mono); letter-spacing: 0.16em; color: var(--tunnel); text-transform: uppercase; }
+  .sim { font: 600 16px/1 var(--mono); letter-spacing: 0.14em; color: var(--dim); text-transform: uppercase; border: 1px solid var(--line); padding: 8px 12px; border-radius: 8px; }
+  h1 { font: 800 190px/0.95 var(--sans); letter-spacing: -0.035em; }
+  h2 { font: 700 72px/1.1 var(--sans); letter-spacing: -0.02em; }
+  h3 { font: 700 54px/1.15 var(--sans); letter-spacing: -0.015em; }
+  .c { color: var(--tunnel); }
+  .glass { background: rgba(14, 19, 32, 0.82); border: 1px solid var(--line); border-radius: 18px; }
+  .pill { display: inline-flex; align-items: center; gap: 12px; padding: 14px 22px; border-radius: 999px; font: 600 26px/1 var(--sans); border: 1px solid var(--line); background: rgba(14, 19, 32, 0.9); }
+  .pill i { width: 12px; height: 12px; border-radius: 50%; background: var(--tunnel); box-shadow: 0 0 14px var(--tunnel); }
+  .chip { font: 700 18px/1 var(--mono); letter-spacing: 0.06em; padding: 7px 10px; border-radius: 7px; text-transform: uppercase; }
+  .bar-row { display: grid; grid-template-columns: 210px 1fr; align-items: center; gap: 16px; height: 54px; }
+  .bar-row .who { font: 600 22px/1.15 var(--sans); color: var(--mute); text-align: right; }
+  .bar-row .who.inf { color: var(--text); }
+  .track { position: relative; height: 34px; }
+  .fill { position: absolute; left: 0; top: 0; height: 34px; border-radius: 6px; }
+  .val { position: absolute; top: 4px; font: 700 24px/26px var(--mono); white-space: nowrap; }
+  .col h4 { font: 800 28px/1 var(--mono); letter-spacing: 0.12em; margin-bottom: 26px; }
+  .col li { list-style: none; font: 500 28px/1.3 var(--sans); color: var(--text); margin: 0 0 18px; padding-left: 26px; position: relative; }
+  .col li::before { content: ''; position: absolute; left: 0; top: 14px; width: 10px; height: 10px; border-radius: 3px; background: currentColor; }
+  .col ul { padding: 0; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script type="module">
+  import '@fontsource/inter/400.css';
+  import '@fontsource/inter/500.css';
+  import '@fontsource/inter/600.css';
+  import '@fontsource/inter/700.css';
+  import '@fontsource/inter/800.css';
+  import '@fontsource/jetbrains-mono/600.css';
+  import '@fontsource/jetbrains-mono/700.css';
+  import '@fontsource/jetbrains-mono/800.css';
+
+  const stage = document.getElementById('stage');
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  const ease = (x) => 1 - Math.pow(1 - clamp(x), 3);
+  /** eased progress of t through [a, b] */
+  const ap = (t, a, b) => ease((t - a) / (b - a));
+  /** fade-and-rise in over [a, a + 0.7] */
+  const rise = (el, t, a, dy = 26) => { const p = ap(t, a, a + 0.7); el.style.opacity = p; el.style.transform = `translateY(${(1 - p) * dy}px)`; };
+  const h = (html) => { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstElementChild; };
+  const fmt = (x, dp = 1) => Number(x).toFixed(dp);
+
+  // a glowing tunnel path with packets, drawn in SVG; `d` is the path, packets travel along it
+  function tunnelSvg(d, w = 1920, hgt = 1080, width = 26) {
+    const s = h(`<svg class="abs" style="left:0;top:0" width="${w}" height="${hgt}" viewBox="0 0 ${w} ${hgt}">
+      <defs><filter id="glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="10"/></filter></defs>
+      <path class="halo" d="${d}" fill="none" stroke="#67e8f9" stroke-opacity="0.35" stroke-width="${width + 18}" filter="url(#glow)" stroke-linecap="round"/>
+      <path class="tube" d="${d}" fill="none" stroke="#67e8f9" stroke-opacity="0.22" stroke-width="${width}" stroke-linecap="round"/>
+      <path class="core" d="${d}" fill="none" stroke="#a5f3fc" stroke-width="3" stroke-linecap="round"/>
+      <g class="pk"></g></svg>`);
+    const paths = [...s.querySelectorAll('path')], len = paths[0].getTotalLength(), pk = s.querySelector('.pk');
+    for (let i = 0; i < 14; i++) pk.appendChild(h(`<svg><circle r="6" fill="#ecfeff"/></svg>`).firstElementChild);
+    for (const p of paths) { p.style.strokeDasharray = `${len}`; }
+    return {
+      el: s,
+      draw(t, a, b, flow = true) {
+        const p = ap(t, a, b);
+        for (const q of paths) q.style.strokeDashoffset = `${len * (1 - p)}`;
+        [...pk.children].forEach((c, i) => {
+          const u = (((t * 0.16 + i / 14) % 1) + 1) % 1;
+          const vis = flow && u < p;
+          const pt = paths[0].getPointAtLength(u * len);
+          c.setAttribute('cx', pt.x); c.setAttribute('cy', pt.y); c.setAttribute('opacity', vis ? 0.95 : 0);
+        });
+      },
+    };
+  }
+
+  const CARDS = {
+    // ─────────────── 1 · title ───────────────
+    title() {
+      const tun = tunnelSvg('M -80 860 C 400 860, 600 620, 960 640 S 1500 760, 2000 560', 1920, 1080, 30);
+      stage.append(tun.el);
+      const k = stage.appendChild(h(`<div class="abs kicker" style="left:140px;top:200px">Team Infinet · ATRC ATP 2026 · EDGE · Stand 31</div>`));
+      const t1 = stage.appendChild(h(`<h1 class="abs" style="left:132px;top:250px">Infinet</h1>`));
+      const t2 = stage.appendChild(h(`<h2 class="abs" style="left:140px;top:470px">Stay connected. <span class="c">Stay secure.</span></h2>`));
+      const q = stage.appendChild(h(`<div class="abs glass" style="left:140px;top:610px;width:1020px;padding:26px 30px">
+        <div class="kicker" style="color:var(--mute);font-size:16px;margin-bottom:12px">The problem</div>
+        <div style="font:500 32px/1.35 var(--sans)">Your phone drops a call when Wi-Fi fades, joins any network with a familiar name, and gives up on satellite too early.</div></div>`));
+      return (t) => { tun.draw(t, 0.2, 2.6); rise(k, t, 0.1); rise(t1, t, 0.35, 40); rise(t2, t, 1.0); rise(q, t, 1.8); };
+    },
+
+    // ─────────────── 2 · the idea, as a diagram ───────────────
+    idea() {
+      const k = stage.appendChild(h(`<div class="abs kicker" style="left:140px;top:96px">The idea</div>`));
+      const t1 = stage.appendChild(h(`<h3 class="abs" style="left:140px;top:136px;width:1640px">Keep the call alive when the network changes, <span class="c">and never hand it to a network nobody checked.</span></h3>`));
+      const svg = h(`<svg class="abs" style="left:0;top:0" width="1920" height="1080" viewBox="0 0 1920 1080">
+        <g class="roads" fill="none" stroke-width="5" stroke-linecap="round">
+          <path class="r0" d="M 330 640 C 520 640, 560 470, 800 470 S 980 600, 1010 610" stroke="#4ade80"/>
+          <path class="r1" d="M 330 640 C 560 640, 700 610, 1010 615" stroke="#4ade80"/>
+          <path class="r2" d="M 330 640 C 520 640, 560 790, 800 790 S 980 640, 1010 620" stroke="#a78bfa"/>
+          <path class="r3" d="M 330 640 C 470 640, 520 900, 700 900" stroke="#f87171" stroke-dasharray="14 12"/>
+        </g></svg>`);
+      stage.append(svg);
+      const tun = tunnelSvg('M 1010 615 C 1150 615, 1250 615, 1400 615', 1920, 1080, 34);
+      stage.append(tun.el);
+      const end = tunnelSvg('M 1520 615 L 1700 615', 1920, 1080, 6);
+      stage.append(end.el);
+      const node = (x, y, title, sub, color = 'var(--text)') => stage.appendChild(h(`<div class="abs" style="left:${x}px;top:${y}px;transform:translateX(-50%);text-align:center">
+        <div style="font:700 30px/1.1 var(--sans);color:${color}">${title}</div><div style="font:500 20px/1.3 var(--sans);color:var(--mute);margin-top:6px">${sub}</div></div>`));
+      const you = node(330, 680, 'You', 'on a call');
+      const phone = stage.appendChild(h(`<div class="abs" style="left:300px;top:580px;width:60px;height:96px;border:4px solid #e8ecf3;border-radius:14px"></div>`));
+      const anchor = stage.appendChild(h(`<div class="abs glass" style="left:1400px;top:560px;width:120px;height:110px;border-color:rgba(103,232,249,.5);display:grid;place-items:center;font:800 40px/1 var(--mono);color:var(--tunnel)">⬢</div>`));
+      const anchorL = node(1460, 690, 'Anchor server', 'the tunnel ends here', 'var(--tunnel)');
+      const hamad = node(1760, 585, 'Hamad', 'the other end');
+      const tunL = stage.appendChild(h(`<div class="abs" style="left:1205px;top:540px;transform:translateX(-50%);font:700 22px/1 var(--mono);letter-spacing:.08em;color:var(--tunnel)">ONE ENCRYPTED TUNNEL</div>`));
+      const lab = (x, y, name, chip, cls) => stage.appendChild(h(`<div class="abs" style="left:${x}px;top:${y}px;display:flex;gap:12px;align-items:center">
+        <span style="font:700 26px/1 var(--sans)">${name}</span><span class="chip" style="${cls}">${chip}</span></div>`));
+      const l0 = lab(560, 420, 'Wi-Fi', 'Trusted', 'background:rgba(74,222,128,.15);color:#4ade80');
+      const l1 = lab(640, 560, '5G', 'Trusted', 'background:rgba(74,222,128,.15);color:#4ade80');
+      const l2 = lab(780, 806, 'Satellite', 'Patient · 0.6 s', 'background:rgba(167,139,250,.16);color:#a78bfa');
+      const l3 = lab(738, 884, 'Café Wi-Fi (copy)', 'Blocked', 'background:rgba(248,113,113,.16);color:#f87171');
+      const why = stage.appendChild(h(`<div class="abs" style="left:740px;top:932px;font:500 22px/1.3 var(--sans);color:#fca5a5">Same name, a different device, no password: checked first, never carries the call</div>`));
+      const x = stage.appendChild(h(`<svg class="abs" style="left:682px;top:882px;overflow:visible" width="36" height="36" viewBox="0 0 36 36"><path d="M6 6 L30 30 M30 6 L6 30" stroke="#f87171" stroke-width="6" stroke-linecap="round"/></svg>`));
+      const roads = [...svg.querySelectorAll('.roads path')];
+      const lens = roads.map((p) => p.getTotalLength());
+      roads.forEach((p, i) => { if (i < 3) p.style.strokeDasharray = `${lens[i]}`; });
+      const pills = ['Sees the drop coming', 'Checks before it trusts', 'Patient on satellite'].map((s, i) =>
+        stage.appendChild(h(`<div class="abs pill" style="left:${140 + i * 520}px;top:330px"><i></i>${s}</div>`)));
+      return (t) => {
+        rise(k, t, 0); rise(t1, t, 0.2);
+        for (const e of [phone, you]) rise(e, t, 0.8);
+        roads.forEach((p, i) => { if (i < 3) p.style.strokeDashoffset = `${lens[i] * (1 - ap(t, 1.0 + i * 0.25, 2.2 + i * 0.25))}`; });
+        [l0, l1, l2].forEach((e, i) => rise(e, t, 1.6 + i * 0.25, 12));
+        tun.draw(t, 2.2, 3.0); end.draw(t, 3.0, 3.4, false);
+        for (const e of [anchor, anchorL, tunL]) rise(e, t, 2.6, 12);
+        rise(hamad, t, 3.2, 12);
+        const c = ap(t, 4.0, 4.6); roads[3].style.opacity = c; l3.style.opacity = c;
+        x.style.opacity = ap(t, 4.9, 5.2); x.style.transformOrigin = '18px 18px'; x.style.transform = `scale(${1.6 - 0.6 * ap(t, 4.9, 5.2)})`;
+        roads[3].style.strokeOpacity = 1 - 0.65 * ap(t, 5.0, 5.4); rise(why, t, 5.1, 8);
+        pills.forEach((e, i) => rise(e, t, 6.0 + i * 0.3, 14));
+      };
+    },
+
+    // ─────────────── 3 · results, from the batch (300 runs per scene) ───────────────
+    results(D) {
+      const k = stage.appendChild(h(`<div class="abs kicker" style="left:140px;top:84px">The numbers · ${D.runs} runs per scene</div>`));
+      const t1 = stage.appendChild(h(`<h3 class="abs" style="left:140px;top:124px">Same walk, same signal: <span class="c">how long the call freezes</span></h3>`));
+      const sim = stage.appendChild(h(`<div class="abs sim" style="right:140px;top:76px">Simulated · settings from published measurements</div>`));
+      const scenes = [['exit', 'Leaving the building'], ['cafe', 'The fake café Wi-Fi'], ['desert', 'The desert site']];
+      const who = [['b1', "Today's phone", '#f87171'], ['b3', 'Tunnel, no check', '#94a3b8'], ['inf', 'Infinet', '#67e8f9']];
+      const max = Math.max(...scenes.flatMap(([s]) => who.map(([w]) => D[s][w])));
+      const panels = scenes.map(([s, name], i) => {
+        const el = stage.appendChild(h(`<div class="abs glass" style="left:${140 + i * 556}px;top:250px;width:528px;padding:26px 26px 22px">
+          <div style="font:700 28px/1 var(--sans);margin-bottom:6px">${name}</div>
+          <div style="font:500 19px/1 var(--mono);color:var(--dim);margin-bottom:22px">seconds frozen per call · mean</div>
+          ${who.map(([w, label, c]) => `<div class="bar-row" style="grid-template-columns:178px 1fr"><div class="who ${w === 'inf' ? 'inf' : ''}" style="font-size:19px;white-space:nowrap">${label}</div>
+            <div class="track"><div class="fill" data-w="${w}" style="background:${c};${w === 'inf' ? 'box-shadow:0 0 18px rgba(103,232,249,.6)' : ''}"></div><div class="val" data-v="${w}" style="color:${c}"></div></div></div>`).join('')}
+          <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--line);font:500 22px/1.3 var(--sans);color:var(--mute)">Calls that survived<br>
+            <span style="font:700 30px/1.4 var(--mono);color:#f87171" data-s="b1"></span><span style="font:700 30px/1.4 var(--mono);color:var(--dim)"> → </span><span style="font:700 30px/1.4 var(--mono);color:var(--tunnel)" data-s="inf"></span><span style="font:500 22px var(--sans);color:var(--dim)"> of ${D.runs}</span></div></div>`));
+        return { el, s };
+      });
+      const stats = [
+        [`${D.property.violations}`, `voice frames over a fake or unchecked network in ${D.property.runs.toLocaleString('en')} randomised attack runs`],
+        [`${fmt(D.lead, 1)} s`, 'of warning from the coverage map before the Wi-Fi edge (median ' + fmt(D.leadMedian, 1) + ' s)'],
+        [`0 vs ${fmt(D.falseDeadB3, 0)}`, "false “link dead” verdicts per satellite call: Infinet vs a fixed-timeout tunnel"],
+      ].map(([big, small], i) => stage.appendChild(h(`<div class="abs glass" style="left:${140 + i * 556}px;top:690px;width:528px;height:150px;padding:22px 26px;display:flex;gap:20px;align-items:center">
+        <div style="font:800 52px/1 var(--mono);color:var(--tunnel);white-space:nowrap">${big}</div><div style="font:500 21px/1.3 var(--sans);color:var(--mute)">${small}</div></div>`)));
+      const honest = stage.appendChild(h(`<div class="abs" style="left:140px;top:884px;width:1640px;font:500 24px/1.4 var(--sans);color:var(--mute)">
+        <b style="color:var(--text)">Honest read:</b> the tunnel and brief duplication keep the call alive; the check keeps every packet off a copied network.<br>
+        <span style="font-size:20px;color:var(--dim)">Mean of ${D.runs} randomised runs per scene, same walk and same radio for every phone. Simulated, not field-measured.</span></div>`));
+      return (t) => {
+        rise(k, t, 0); rise(t1, t, 0.15); rise(sim, t, 0.3);
+        panels.forEach(({ el, s }, i) => {
+          rise(el, t, 0.5 + i * 0.25, 18);
+          for (const [w] of who) {
+            const p = ap(t, 1.2 + i * 0.35 + (w === 'inf' ? 0.5 : w === 'b3' ? 0.25 : 0), 2.4 + i * 0.35 + (w === 'inf' ? 0.5 : w === 'b3' ? 0.25 : 0));
+            const v = D[s][w] * p, wpx = Math.max(3, (196 * v) / max);
+            el.querySelector(`[data-w="${w}"]`).style.width = `${wpx}px`;
+            const val = el.querySelector(`[data-v="${w}"]`); val.textContent = `${fmt(v, 1)} s`; val.style.left = `${wpx + 10}px`; val.style.opacity = p > 0 ? 1 : 0;
+          }
+          const sp = ap(t, 3.4 + i * 0.3, 4.4 + i * 0.3);
+          el.querySelector('[data-s="b1"]').textContent = Math.round(D[s].survB1 * sp);
+          el.querySelector('[data-s="inf"]').textContent = Math.round(D[s].survInf * sp);
+        });
+        stats.forEach((e, i) => rise(e, t, 5.6 + i * 0.35, 16));
+        rise(honest, t, 7.6, 10);
+      };
+    },
+
+    // ─────────────── 4 · built, simulated, next ───────────────
+    built(D) {
+      const k = stage.appendChild(h(`<div class="abs kicker" style="left:140px;top:110px">Clear about what's real</div>`));
+      const t1 = stage.appendChild(h(`<h3 class="abs" style="left:140px;top:150px">Built · simulated · <span class="c">next</span></h3>`));
+      const cols = [
+        ['BUILT', '#4ade80', D.built],
+        ['SIMULATED', '#fbbf24', D.simulated],
+        ['NEXT', '#67e8f9', D.next],
+      ].map(([name, c, items], i) => stage.appendChild(h(`<div class="abs glass col" style="left:${140 + i * 556}px;top:290px;width:528px;min-height:600px;padding:34px 34px;border-top:4px solid ${c}">
+          <h4 style="color:${c}">${name}</h4><ul style="color:${c}">${items.map((s) => `<li><span style="color:var(--text)">${s}</span></li>`).join('')}</ul></div>`)));
+      return (t) => { rise(k, t, 0); rise(t1, t, 0.15); cols.forEach((e, i) => rise(e, t, 0.6 + i * 0.45, 20)); };
+    },
+
+    // ─────────────── 5 · end ───────────────
+    end(D) {
+      const tun = tunnelSvg('M -80 300 C 500 300, 700 420, 960 420 S 1500 300, 2000 360', 1920, 1080, 24);
+      stage.append(tun.el);
+      const t1 = stage.appendChild(h(`<h1 class="abs" style="left:0;right:0;top:470px;text-align:center;font-size:150px">Infinet</h1>`));
+      const t2 = stage.appendChild(h(`<div class="abs" style="left:0;right:0;top:640px;text-align:center;font:700 52px/1.1 var(--sans)">Stay connected. <span class="c">Stay secure.</span></div>`));
+      const t3 = stage.appendChild(h(`<div class="abs" style="left:0;right:0;top:744px;text-align:center;font:600 26px/1.4 var(--mono);color:var(--mute);letter-spacing:.06em">TEAM INFINET · ATRC ATP 2026 · EDGE · STAND 31</div>`));
+      const t4 = stage.appendChild(h(`<div class="abs" style="left:0;right:0;top:800px;text-align:center;font:500 26px/1.4 var(--sans);color:var(--mute)">Walk it yourself at the stand</div>`));
+      const t5 = stage.appendChild(h(`<div class="abs" style="left:0;right:0;top:980px;text-align:center;font:500 20px/1.4 var(--sans);color:var(--dim)">Everything on screen is simulated, with settings from published measurements, unless it says measured.</div>`));
+      return (t) => { tun.draw(t, 0, 1.6); rise(t1, t, 0.2, 30); rise(t2, t, 0.7); rise(t3, t, 1.2); rise(t4, t, 1.4); rise(t5, t, 1.8, 8); };
+    },
+  };
+
+  let draw = () => {};
+  window.__card = {
+    show(name, data) { stage.innerHTML = ''; draw = CARDS[name](data); draw(0); },
+    render(t) { draw(t); },
+    ready: () => document.fonts.ready.then(() => true),
+  };
+</script>
+</body>
+</html>

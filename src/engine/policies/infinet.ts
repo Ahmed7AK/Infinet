@@ -3,18 +3,19 @@
  *         + deadline-aware selective duplication + RTT-aware liveness + LEO pattern learner.
  * Reads only Observations + its own belief map + its own probe results (never truth; plan P5/P6).
  * Security spec v1.0: verdicts route, encryption never stops. Every frame goes through the tunnel on every
- * network; Trusted is the primary path, Tunnel only a backup, Unreachable and Blocked never. Duplication (D3)
+ * network; Wi-Fi first: a Trusted Wi-Fi, or a Tunnel-only one with no red flag, carries the call ahead of 5G, which
+ * keeps its tunnel up as the backup; a flagged network is a backup at most; Unreachable and Blocked never. Duplication (D3)
  * is one tunnel per path, each with its own handshake, and the receiver drops copies by sequence number.
  * Anchor down: fail closed (D2). Nothing goes outside the tunnel; the phone says so and holds messages.
  */
 import { v } from '../params';
 import type { Flag, HandshakeResult, LinkType, PolicyId, ScanEntry, Tier, TrustView, Vec2 } from '../types';
-import { Agent, isFakeNet, isWifiPath, netOf, NET_LABEL, probeTimeoutS, type Ctx } from './agent';
+import { Agent, isFakeNet, isWifiPath, mobileWord, netOf, NET_LABEL, probeTimeoutS, type Ctx } from './agent';
 
 const netOfKind = (pathId: string): LinkType => (pathId.startsWith('cell:') ? '5g' : pathId === 'wifi:site-net' ? 'sat' : 'wifi');
 import { Predictor, type TtlResult } from '../predict/predict';
 import { LeoLearner } from '../predict/leoPattern';
-import { decideTier, isEnrolled, redFlags, screen, SEC_LABEL, SEC_RANK, verdictText } from '../trust/trust';
+import { decideTier, isEnrolled, knownApsFor, redFlags, screen, SEC_LABEL, SEC_RANK, verdictText } from '../trust/trust';
 import { rttOf, sampleProbeRtt } from '../links/paths';
 import { LAYOUT } from '../world/layout';
 
@@ -41,6 +42,8 @@ export class Infinet extends Agent {
   checkTarget: string | null = null;
   private goodWifiSince: number | null = null;
   private switchedAt = -100;
+  /** Wi-Fi first, without flapping: how often the call had to leave each Wi-Fi lately, and when it last did */
+  private leftWifi = new Map<string, { n: number; at: number }>();
   /** Wi-Fi paths Infinet left because they were congested (strong signal, packets lost): only fresh probes clear them */
   private congested = new Set<string>();
   /** prediction bookkeeping for the batch metric (lead time and error vs truth) */
@@ -103,7 +106,7 @@ export class Infinet extends Agent {
     const out: TrustView['steps'] = [];
     const hs = tv.handshake;
     if (tv.linkType === '5g') {
-      out.push({ text: 'SIM-authenticated (5G AKA, mutual)', ok: true, t });
+      out.push({ text: `SIM-authenticated (${mobileWord() === '4G' ? 'EPS' : '5G'} AKA, mutual)`, ok: true, t });
       out.push({ text: hs === 'pass' ? 'Probe handshake with the anchor: passed' : hs === 'timeout' ? 'Probe: no answer yet · retrying' : 'Probe handshake with the anchor (1 round trip)', ok: hs === 'pass' ? true : null, t });
       return out;
     }
@@ -129,7 +132,7 @@ export class Infinet extends Agent {
 
   private refresh(tv: TrustView, t: number) {
     tv.steps = this.stepsFor(tv, t);
-    const staying = this.route ? (NET_LABEL[netOf(this.route)] ?? '5G') : '5G';
+    const staying = this.route ? (NET_LABEL[netOf(this.route)] ?? mobileWord()) : mobileWord();
     Object.assign(tv, verdictText(tv, staying));
   }
 
@@ -157,7 +160,7 @@ export class Infinet extends Agent {
     void ctx;
   }
 
-  /** what may carry the tunnel: Trusted (primary) or Tunnel only (backup). Unreachable, Blocked, Checking: never. */
+  /** what may carry the tunnel: Trusted or Tunnel only. Unreachable, Blocked, Checking: never. */
   isAdmissible(ctx: Ctx, pathId: string): boolean {
     if (!this.opts.trust) return true;
     const tv = this.tierOfPath(ctx, pathId);
@@ -173,6 +176,26 @@ export class Infinet extends Agent {
     return tv.tier === 'tunnel' && tv.handshake === 'pass';
   }
 
+  /**
+   * Wi-Fi first (DECISIONS 9 Nov): mobile data costs money and 5G isn't everywhere, so a Wi-Fi carries the call ahead
+   * of 5G when it is Trusted, or Tunnel only with a passed check and no red flag (a public network that is simply new
+   * to us, like a café's or the venue's: everything goes through our encrypted tunnel). A network with a red flag is
+   * a backup at most. 5G keeps its tunnel up as the backup.
+   */
+  private wifiFirstOk(ctx: Ctx, wp: string): boolean {
+    if (!this.usableTrusted(ctx, wp)) return false;
+    if (!this.opts.trust) return true;
+    const tv = this.tierOfPath(ctx, wp);
+    return !!tv && (tv.tier === 'trusted' || (tv.tier === 'tunnel' && tv.handshake === 'pass' && tv.flags.length === 0));
+  }
+
+  /** flap damping: may the call go back to this Wi-Fi yet? The wait doubles each time it had to leave it again */
+  private flapOk(ctx: Ctx, wp: string): boolean {
+    const left = this.leftWifi.get(wp);
+    if (!left) return true;
+    return ctx.t - left.at > Math.min(v('wifiFlapMaxHoldS'), v('wifiReturnHoldS') * 2 ** (left.n - 1));
+  }
+
   routeChecked(ctx: Ctx): boolean {
     return !!this.route && this.isAdmissible(ctx, this.route);
   }
@@ -181,6 +204,9 @@ export class Infinet extends Agent {
   private trustBookkeeping(ctx: Ctx) {
     if (!ctx.radioTick) return;
     this.floodCheck(ctx);
+    // the user signed in on a network's sign-in page: check it again now rather than at the 2-minute retry
+    const signed = ctx.lab.signedIn ?? [];
+    for (const tv of this.trust.values()) if (tv.handshake === 'portal' && !tv.follows && signed.includes(tv.net) && (tv.retryAt ?? 0) > ctx.t) tv.retryAt = ctx.t;
     for (const e of ctx.obs.scan) {
       if (e.anon) continue;                         // other people's networks: anonymous dots, never joined
       if (e.rssiDbm < -82 && !e.live) continue;
@@ -191,6 +217,10 @@ export class Infinet extends Agent {
         this.trust.set(e.bssid, this.enrolledView(e.bssid, e.ssid, e.net, ctx.t));
         continue;
       }
+      // one check per surveyed network: another access point of a network on our survey map (same raw name and
+      // security, both BSSIDs on the map) follows that check's verdict instead of starting its own
+      const lead = this.opts.trust && !e.live ? this.surveyedLead(e) : null;
+      if (lead) { this.trust.set(e.bssid, { ...lead, bssid: e.bssid, follows: lead.bssid, firstSeenT: ctx.t, steps: [...lead.steps] }); continue; }
       const flags: Flag[] = this.opts.trust ? redFlags(e, ctx.obs.pos, e.live ? null : ctx.maps, { learned: this.learned }) : [];
       const view: TrustView = {
         bssid: e.bssid, ssid: e.ssid, net: e.net, tier: 'checking', flags, security: e.security, handshake: 'pending', linkType: e.net === 'site-net' ? 'sat' : 'wifi',
@@ -208,6 +238,12 @@ export class Infinet extends Agent {
       this.refresh(view, ctx.t);
       ctx.emit({ t: ctx.t, type: 'trust.checking', bssid: e.bssid, ssid: e.ssid, flags, reason: view.reason });
       if (e.live) this.liveProbeAt.set(e.bssid, ctx.t + v('liveProbeS'));
+    }
+    // followers take their lead's state (verdict, reason, steps) every scan
+    for (const tv of this.trust.values()) {
+      if (!tv.follows) continue;
+      const l = this.trust.get(tv.follows);
+      if (l) Object.assign(tv, { tier: l.tier, flags: l.flags, handshake: l.handshake, canaries: l.canaries, decidedT: l.decidedT, retryAt: l.retryAt, stage: l.stage, reason: l.reason, mayCarry: l.mayCarry, steps: l.steps });
     }
     // live hotspots: the screen is real; the quarantine probe is simulated (the laptop never joins venue Wi-Fi)
     for (const [b, at] of this.liveProbeAt) {
@@ -228,6 +264,16 @@ export class Infinet extends Agent {
         this.learned.set(e.ssidHex, l);
       }
     }
+  }
+
+  /** the BSSID whose check covers this one: same raw name and security, both access points on the survey map, and
+   *  the network has more than one there (a single-AP network like the café's is checked on its own) */
+  private surveyedLead(e: ScanEntry): TrustView | null {
+    const aps = knownApsFor(e.ssidHex, [0, 0], 1e9);
+    if (aps.length < 2 || !aps.some((k) => k.bssid === e.bssid && k.security === e.security)) return null;
+    const mapped = new Set(aps.map((k) => k.bssid));
+    for (const tv of this.trust.values()) if (!tv.follows && !tv.live && mapped.has(tv.bssid) && tv.security === e.security && tv.bssid !== e.bssid) return tv;
+    return null;
   }
 
   /** a known BSSID that comes back weaker (the downgrade variant: same BSSID, no password) is checked again */
@@ -267,7 +313,7 @@ export class Infinet extends Agent {
     const names = new Set<string>();
     for (const e of ctx.obs.scan) {
       const f = ctx.obs.firstSeen.get(e.bssid);
-      if (f !== undefined && f > 0.5 && ctx.t - f <= win) names.add(e.ssidHex || e.bssid);
+      if (f !== undefined && f > 0.5 && ctx.t - f <= win) names.add(e.ssidHex || e.nameKey || e.bssid);
     }
     const on = names.size >= v('floodNewNames');
     if (on !== this.flood) {
@@ -288,7 +334,7 @@ export class Infinet extends Agent {
     const due = (tv: TrustView) => (tv.tier === 'checking' || tv.tier === 'unreachable') && (tv.retryAt ?? -1) <= ctx.t;
     // during a beacon flood no stranger is checked (spec §6: upgrades are frozen anyway), so the radio isn't
     // spent probing fakes and stays free to rejoin a network already trusted
-    const pending = this.flood ? [] : [...this.trust.values()].filter((tv) => !tv.bssid.startsWith('cell:') && !tv.live && due(tv) && ctx.obs.byBssid.has(tv.bssid))
+    const pending = this.flood ? [] : [...this.trust.values()].filter((tv) => !tv.bssid.startsWith('cell:') && !tv.live && !tv.follows && due(tv) && ctx.obs.byBssid.has(tv.bssid))
       .sort((a, b) => a.firstSeenT - b.firstSeenT);
     if (!pending.length) {
       // nothing to check: if associated to something unusable, leave it
@@ -303,7 +349,9 @@ export class Infinet extends Agent {
         // silence, so rejoin at the same level the OS would.
         const stranded = !this.route || !this.pathUsable(ctx, this.route);
         const minRssi = stranded ? v('wifiDataDbm') : v('wifiVoiceDbm');
-        const enr = ctx.obs.scan.filter((e) => this.trust.get(e.bssid)?.tier === 'trusted' && e.rssiDbm > minRssi).sort((a, b) => b.rssiDbm - a.rssiDbm)[0];
+        // Wi-Fi first: a trusted network, or a checked one with no red flag (DECISIONS 9 Nov)
+        const firstOk = (tv?: TrustView) => !!tv && (tv.tier === 'trusted' || (tv.tier === 'tunnel' && tv.handshake === 'pass' && tv.flags.length === 0));
+        const enr = ctx.obs.scan.filter((e) => firstOk(this.trust.get(e.bssid)) && e.rssiDbm > minRssi && (stranded || this.flapOk(ctx, `wifi:${e.net}`))).sort((a, b) => b.rssiDbm - a.rssiDbm)[0];
         if (enr) { this.checkTarget = null; this.joinWifi(ctx, enr.net, enr.bssid, 'use'); }
       }
       return;
@@ -344,7 +392,7 @@ export class Infinet extends Agent {
     tv.tier = tier;
     tv.stage = tier === 'checking' ? 'quarantine' : 'verdict';
     tv.decidedT = tier === 'checking' ? undefined : ctx.t;
-    tv.retryAt = tier === 'unreachable' || tier === 'checking' ? ctx.t + v('unreachableRetryS') : undefined;
+    tv.retryAt = tier === 'unreachable' || tier === 'checking' ? ctx.t + (hs === 'portal' ? v('portalRetryS') : v('unreachableRetryS')) : undefined;
     this.refresh(tv, ctx.t);
     this.report(ctx, tv);
     if (this.wifi.bssid === tv.bssid) {
@@ -438,6 +486,8 @@ export class Infinet extends Agent {
     }
     if (lost !== this.anchorLost) {
       this.anchorLost = lost;
+      // every path was silent because the anchor was: leaving a Wi-Fi then says nothing about that Wi-Fi
+      this.leftWifi.clear();
       ctx.emit({ t: ctx.t, type: lost ? 'anchor.lost' : 'anchor.back' });
     }
   }
@@ -504,6 +554,8 @@ export class Infinet extends Agent {
 
   private onWifi(ctx: Ctx) {
     const net = netOf(this.route!);
+    // a Wi-Fi that has carried the call for a while without trouble starts again from the shortest wait
+    if (ctx.t - this.switchedAt > v('wifiFlapResetS')) this.leftWifi.delete(this.route!);
     const thr = v('wifiDataDbm');
     let ttl: number | undefined;
     if (this.opts.predict) {
@@ -565,6 +617,10 @@ export class Infinet extends Agent {
     const dupOk = this.pathUsable(ctx, from) && fits(pf) && fits(pt);
     this.switchedAt = ctx.t;
     this.congested.delete(to);
+    if (isWifiPath(from) && !isWifiPath(to)) {
+      const prev = this.leftWifi.get(from);
+      this.leftWifi.set(from, { n: (prev?.n ?? 0) + 1, at: ctx.t });
+    }
     if (isWifiPath(from)) this.predLog.push({ switchT: ctx.t, predictedCrossT: ttl !== undefined ? ctx.t + ttl : undefined, net: netOf(from) });
     this.steer(ctx, to, dupOk ? { dupWith: from, dupS: v('dupHoldS') } : {});
     this.predictor.clearRssi();
@@ -578,15 +634,14 @@ export class Infinet extends Agent {
   pendingSwitchReport: { at: number; to: string; frozenBefore: number } | null = null;
 
   private onCell(ctx: Ctx) {
-    // return to a trusted Wi-Fi when it is good and stable (make-before-break)
+    // Wi-Fi first: move to a Wi-Fi that may carry the call as soon as it is good and stable (make-before-break)
     const w = this.wifi;
     if (w.net && w.phase === 'up') {
       const wp = `wifi:${w.net}`;
-      const tv = this.tierOfPath(ctx, wp);
       const good = this.measuredWifiRssi(ctx) > v('wifiVoiceDbm');
-      if (tv?.tier === 'trusted' && good && this.usableTrusted(ctx, wp) && this.wifiHealthy(ctx, wp)) {
+      if (good && this.wifiFirstOk(ctx, wp) && this.wifiHealthy(ctx, wp)) {
         this.goodWifiSince ??= ctx.t;
-        if (ctx.t - this.goodWifiSince > 2 && ctx.t - this.switchedAt > 4) { this.switchTo(ctx, wp); this.goodWifiSince = null; return; }
+        if (ctx.t - this.goodWifiSince > 2 && ctx.t - this.switchedAt > v('wifiReturnHoldS') && this.flapOk(ctx, wp)) { this.switchTo(ctx, wp); this.goodWifiSince = null; return; }
       } else this.goodWifiSince = null;
     }
     // current cellular path dying? fall back to the best checked alternative
@@ -598,7 +653,8 @@ export class Infinet extends Agent {
       if (cell && cell !== this.route) { this.startCheck(ctx, cell); if (this.candidateState === 'ready') this.switchTo(ctx, cell); }
       // back to the Wi-Fi only if it works, unless this 5G has died outright: a weak 5G with no loss beats a
       // Wi-Fi with full bars and a flooded uplink, and checking first stops the call bouncing between the two
-      else if (w.net && w.phase === 'up' && this.usableTrusted(ctx, `wifi:${w.net}`) && (this.wifiHealthy(ctx, `wifi:${w.net}`) || !!r?.dead || !this.route || !this.pathUsable(ctx, this.route))) this.switchTo(ctx, `wifi:${w.net}`);
+      // (and, while this 5G still works, not before the flap-damping wait for that Wi-Fi is over)
+      else if (w.net && w.phase === 'up' && this.usableTrusted(ctx, `wifi:${w.net}`) && ((this.wifiHealthy(ctx, `wifi:${w.net}`) && this.flapOk(ctx, `wifi:${w.net}`)) || !!r?.dead || !this.route || !this.pathUsable(ctx, this.route))) this.switchTo(ctx, `wifi:${w.net}`);
       else if (!this.route && cell) this.switchTo(ctx, cell);
     }
   }
