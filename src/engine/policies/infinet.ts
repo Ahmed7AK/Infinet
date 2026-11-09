@@ -9,7 +9,7 @@
  */
 import { v } from '../params';
 import type { Flag, HandshakeResult, LinkType, PolicyId, ScanEntry, Tier, TrustView, Vec2 } from '../types';
-import { Agent, isWifiPath, netOf, NET_LABEL, probeTimeoutS, type Ctx } from './agent';
+import { Agent, isFakeNet, isWifiPath, netOf, NET_LABEL, probeTimeoutS, type Ctx } from './agent';
 
 const netOfKind = (pathId: string): LinkType => (pathId.startsWith('cell:') ? '5g' : pathId === 'wifi:site-net' ? 'sat' : 'wifi');
 import { Predictor, type TtlResult } from '../predict/predict';
@@ -41,6 +41,8 @@ export class Infinet extends Agent {
   checkTarget: string | null = null;
   private goodWifiSince: number | null = null;
   private switchedAt = -100;
+  /** Wi-Fi paths Infinet left because they were congested (strong signal, packets lost): only fresh probes clear them */
+  private congested = new Set<string>();
   /** prediction bookkeeping for the batch metric (lead time and error vs truth) */
   predLog: Array<{ switchT: number; predictedCrossT?: number; net: string }> = [];
   pattern?: { periodS: number; confidence: number };
@@ -138,7 +140,7 @@ export class Infinet extends Agent {
     const ms = Math.max(v('radioTickS') * 1000, (tv.decidedT - tv.firstSeenT) * 1000);
     ctx.emit({ t: ctx.t, type, bssid: tv.bssid, ssid: tv.ssid, flags: tv.flags, reason: tv.reason, handshake: tv.handshake, verdictMs: Math.round(ms) });
     this.verdictLog.push({ linkType: tv.linkType, ms, tier: tv.tier });
-    const fake = tv.net === 'twin';
+    const fake = isFakeNet(tv.net);
     if (tv.tier === 'blocked' && !fake && !tv.live) this.wronglyBlocked++;
     if (tv.tier === 'unreachable' && !fake) this.realUnreachable.add(tv.bssid);
     if ((tv.tier === 'tunnel' || tv.tier === 'trusted') && fake) this.fakeAccepted.add(tv.bssid);
@@ -234,7 +236,7 @@ export class Infinet extends Agent {
     if (tv.net !== e.net) {
       tv.net = e.net;                            // the radio now hears another transmitter under this BSSID
       // a perfect copy (same name, security and BSSID) inherits the real network's verdict: counted, never hidden
-      if (tv.net === 'twin' && (tv.tier === 'tunnel' || tv.tier === 'trusted')) this.fakeAccepted.add(tv.bssid);
+      if (isFakeNet(tv.net) && (tv.tier === 'tunnel' || tv.tier === 'trusted')) this.fakeAccepted.add(tv.bssid);
     }
     const was = tv.security;
     if (!was || e.security === was) return;
@@ -276,11 +278,17 @@ export class Infinet extends Agent {
 
   /** Pick a network to probe with the (single) Wi-Fi radio, if the radio is not carrying the call. */
   private maybeProbeCandidate(ctx: Ctx) {
-    const carrying = isWifiPath(this.route) || (this.dup?.paths.some(isWifiPath) ?? false);
+    // carrying = the radio is actually associated to the Wi-Fi the call rides on. A route that still names a Wi-Fi
+    // the radio has lost (walked out of range with no 5G to fall back to, e.g. the desert site) carries nothing,
+    // so the radio is free to rejoin it, or another trusted network, when it comes back into range.
+    const onRadio = (p: string) => isWifiPath(p) && this.wifi.net === netOf(p);
+    const carrying = (!!this.route && onRadio(this.route)) || (this.dup?.paths.some(onRadio) ?? false);
     if (carrying) return;
     if (this.wifi.net && this.wifi.phase !== 'up') return; // a join is in progress
     const due = (tv: TrustView) => (tv.tier === 'checking' || tv.tier === 'unreachable') && (tv.retryAt ?? -1) <= ctx.t;
-    const pending = [...this.trust.values()].filter((tv) => !tv.bssid.startsWith('cell:') && !tv.live && due(tv) && ctx.obs.byBssid.has(tv.bssid))
+    // during a beacon flood no stranger is checked (spec §6: upgrades are frozen anyway), so the radio isn't
+    // spent probing fakes and stays free to rejoin a network already trusted
+    const pending = this.flood ? [] : [...this.trust.values()].filter((tv) => !tv.bssid.startsWith('cell:') && !tv.live && due(tv) && ctx.obs.byBssid.has(tv.bssid))
       .sort((a, b) => a.firstSeenT - b.firstSeenT);
     if (!pending.length) {
       // nothing to check: if associated to something unusable, leave it
@@ -290,7 +298,12 @@ export class Infinet extends Agent {
       }
       // join an enrolled network we trust, for use
       if (!this.wifi.net) {
-        const enr = ctx.obs.scan.filter((e) => this.trust.get(e.bssid)?.tier === 'trusted' && e.rssiDbm > v('wifiVoiceDbm')).sort((a, b) => b.rssiDbm - a.rssiDbm)[0];
+        // hysteresis: while another link (5G) carries the call, wait for voice-grade Wi-Fi so the phone doesn't
+        // bounce at the edge. With no working link at all (the desert site), any data-usable trusted Wi-Fi beats
+        // silence, so rejoin at the same level the OS would.
+        const stranded = !this.route || !this.pathUsable(ctx, this.route);
+        const minRssi = stranded ? v('wifiDataDbm') : v('wifiVoiceDbm');
+        const enr = ctx.obs.scan.filter((e) => this.trust.get(e.bssid)?.tier === 'trusted' && e.rssiDbm > minRssi).sort((a, b) => b.rssiDbm - a.rssiDbm)[0];
         if (enr) { this.checkTarget = null; this.joinWifi(ctx, enr.net, enr.bssid, 'use'); }
       }
       return;
@@ -526,6 +539,16 @@ export class Infinet extends Agent {
     const predicted = ttl !== undefined && ttl <= v('switchLeadS');
     if ((predicted || reactive) && this.candidateState === 'idle') this.startCheck(ctx, cand);
     if ((predicted || reactive || measured < thr) && this.candidateState === 'ready' && ctx.t - this.switchedAt > 1) {
+      // strong signal, yet voice is lost or the probes time out: the network behind the radio is the problem
+      // (a flooded uplink). Bars would say "stay"; Infinet's own measurements say "go".
+      if (!predicted && measured > v('wifiVoiceDbm') && (lossRecent > 0.2 || !!r?.dead)) {
+        const s = this.probeStats(this.route!);
+        ctx.emit({ t: ctx.t, type: 'path.congested', link: this.route!, label: NET_LABEL[net] ?? net, lossPct: Math.round(100 * Math.max(lossRecent, s.lost)), rttMs: Math.round(s.medianMs) });
+        // remember it, and forget the probe history from before the trouble: only new probes may clear it
+        this.congested.add(this.route!);
+        const ro = this.rto.get(this.route!);
+        if (ro) ro.samples = [];
+      }
       this.switchTo(ctx, cand, ttl);
     }
     if (!prepare && !reactive && ttl === undefined && this.candidateState === 'ready' && this.headsUpFor) {
@@ -541,6 +564,7 @@ export class Infinet extends Agent {
     const fits = (p?: { owdMs: number }) => !!p && p.owdMs + v('anchorDetourMs') <= deadline;
     const dupOk = this.pathUsable(ctx, from) && fits(pf) && fits(pt);
     this.switchedAt = ctx.t;
+    this.congested.delete(to);
     if (isWifiPath(from)) this.predLog.push({ switchT: ctx.t, predictedCrossT: ttl !== undefined ? ctx.t + ttl : undefined, net: netOf(from) });
     this.steer(ctx, to, dupOk ? { dupWith: from, dupS: v('dupHoldS') } : {});
     this.predictor.clearRssi();
@@ -560,7 +584,7 @@ export class Infinet extends Agent {
       const wp = `wifi:${w.net}`;
       const tv = this.tierOfPath(ctx, wp);
       const good = this.measuredWifiRssi(ctx) > v('wifiVoiceDbm');
-      if (tv?.tier === 'trusted' && good && this.usableTrusted(ctx, wp)) {
+      if (tv?.tier === 'trusted' && good && this.usableTrusted(ctx, wp) && this.wifiHealthy(ctx, wp)) {
         this.goodWifiSince ??= ctx.t;
         if (ctx.t - this.goodWifiSince > 2 && ctx.t - this.switchedAt > 4) { this.switchTo(ctx, wp); this.goodWifiSince = null; return; }
       } else this.goodWifiSince = null;
@@ -572,9 +596,32 @@ export class Infinet extends Agent {
     if (bad) {
       const cell = this.bestCell(ctx);
       if (cell && cell !== this.route) { this.startCheck(ctx, cell); if (this.candidateState === 'ready') this.switchTo(ctx, cell); }
-      else if (w.net && w.phase === 'up' && this.usableTrusted(ctx, `wifi:${w.net}`)) this.switchTo(ctx, `wifi:${w.net}`);
+      // back to the Wi-Fi only if it works, unless this 5G has died outright: a weak 5G with no loss beats a
+      // Wi-Fi with full bars and a flooded uplink, and checking first stops the call bouncing between the two
+      else if (w.net && w.phase === 'up' && this.usableTrusted(ctx, `wifi:${w.net}`) && (this.wifiHealthy(ctx, `wifi:${w.net}`) || !!r?.dead || !this.route || !this.pathUsable(ctx, this.route))) this.switchTo(ctx, `wifi:${w.net}`);
       else if (!this.route && cell) this.switchTo(ctx, cell);
     }
+  }
+
+  /** recent probes on a path: share lost and median round trip (its own measurements, never truth) */
+  private probeStats(pathId: string, n = 10): { lost: number; medianMs: number; samples: number } {
+    const s = (this.rto.get(pathId)?.samples ?? []).slice(-n);
+    const fin = s.filter(Number.isFinite).sort((a, b) => a - b);
+    return { lost: s.length ? (s.length - fin.length) / s.length : 0, medianMs: fin.length ? fin[Math.floor(fin.length / 2)] : Infinity, samples: s.length };
+  }
+
+  /** After leaving a Wi-Fi for congestion, return only once it actually works again, not just because the bars
+   *  are full: keep probing it through its own tunnel while 5G carries the call, and require few losses and a
+   *  round trip close to the 5G one. Without this a flooded uplink (strong signal, full queue) would pull the call
+   *  back every few seconds. A Wi-Fi never flagged keeps the usual rule (trusted + good signal). */
+  private wifiHealthy(ctx: Ctx, wp: string): boolean {
+    if (!this.congested.has(wp)) return true;
+    this.liveness(ctx, wp);
+    const s = this.probeStats(wp, 10);
+    if (s.samples < 5) return false;
+    const cur = this.route ? this.rto.get(this.route)?.srtt : undefined;
+    // a busy café loses a few percent and that is fine; a flooded uplink loses about half and adds ~0.5 s
+    return s.lost <= v('wifiReturnMaxLoss') && s.medianMs <= (cur ?? v('typicalRtt5gMs')) + v('wifiReturnRttMarginMs');
   }
 
   private leoLogic(ctx: Ctx, r: Rto) {

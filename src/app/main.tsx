@@ -32,6 +32,12 @@ if (sc && SCENARIOS[sc]) {
   driver.load(sc, false);
   if (q.get('stale')) driver.setLab({ mapStaleness: Number(q.get('stale')) });
   if (q.get('baseline')) driver.setLab({ baseline: q.get('baseline') as 'b1' | 'b2' | 'b3' });
+  // Lab attacks for recording/rehearsal: ?attack=beacon,uplink,site
+  for (const a of (q.get('attack') ?? '').split(',')) {
+    if (a === 'beacon') driver.setLab({ beaconFlood: true });
+    if (a === 'uplink') driver.setLab({ uplinkFlood: true });
+    if (a === 'site') driver.setLab({ siteTwin: true });
+  }
   if (q.get('t')) driver.fastForward(Number(q.get('t')));
   if (q.get('view')) useUi.setState({ view: q.get('view') as ViewMode });
   if (q.get('vision')) { useUi.setState({ vision: true }); visionK.v = 1; }

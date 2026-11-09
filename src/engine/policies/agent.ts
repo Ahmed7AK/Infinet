@@ -48,11 +48,15 @@ export const NET_LABEL: Record<string, string> = {
   'cafe-guest': 'Café Wi-Fi',
   twin: 'Café Wi-Fi (copy)',
   'site-net': 'Site Wi-Fi',
+  'site-twin': 'Site Wi-Fi (copy)',
+  flood: 'Fake beacon (flood)',
   'cell-a': '5G',
   'cell-b': '5G (Cellular B)',
 };
 
 export const netOf = (pathId: string) => pathId.split(':')[1];
+/** networks that are an attacker's (truth only: the batch metrics count them; the phone never reads this) */
+export const isFakeNet = (net: string) => net === 'twin' || net === 'site-twin' || net === 'flood';
 export const isWifiPath = (pathId: string | null) => !!pathId && pathId.startsWith('wifi:');
 
 const SAVED_SSIDS = new Set(['Office-Corp', 'Cafe_Guest', 'Site-Net']);

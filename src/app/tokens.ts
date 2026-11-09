@@ -51,12 +51,12 @@ export const minus = (s: string) => s.replace(/-/g, '−');
 
 /** friendly names for network ids (never real operator or venue names) */
 export const NET_NAME: Record<string, string> = {
-  'office-corp': 'Office-Corp', 'cafe-guest': 'Cafe_Guest', twin: 'Cafe_Guest (copy)', 'site-net': 'Site-Net',
+  'office-corp': 'Office-Corp', 'cafe-guest': 'Cafe_Guest', twin: 'Cafe_Guest (copy)', 'site-net': 'Site-Net', 'site-twin': 'Site-Net (copy)',
   'cell-a': 'Cellular A · 5G', 'cell-b': 'Cellular B · 5G',
 };
 export const pathName = (p?: string | null) => {
   if (!p) return '—';
   const [k, n] = p.split(':');
   if (k === 'cell') return n === 'cell-b' ? '5G (Cellular B)' : '5G (Cellular A)';
-  return ({ 'office-corp': 'Office Wi-Fi', 'cafe-guest': 'Café Wi-Fi', twin: 'Café Wi-Fi (copy)', 'site-net': 'Site Wi-Fi' } as Record<string, string>)[n] ?? n;
+  return ({ 'office-corp': 'Office Wi-Fi', 'cafe-guest': 'Café Wi-Fi', twin: 'Café Wi-Fi (copy)', 'site-net': 'Site Wi-Fi', 'site-twin': 'Site Wi-Fi (copy)', flood: 'Fake beacon' } as Record<string, string>)[n] ?? n;
 };

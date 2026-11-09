@@ -169,6 +169,17 @@ export const PARAMS = {
   authFailPackets: p(1, 'Spec §2: one or more probe packets that arrive but fail authentication give Blocked (WireGuard drops them silently; the probe counts them)'),
   floodNewNames: p(8, 'ASSUMPTION (spec §6 leaves N open): 8 or more new names within the flood window raise the flood alert'),
   floodWindowS: p(5, 'ASSUMPTION: the flood alert counts new names over the last 5 s of scans'),
+  // ───────────── Lab attacks: DDoS and the desert copy ─────────────
+  beaconFloodEirpDbm: p(15, 'ASSUMPTION: a cheap ESP32/USB-adapter beacon flooder (mdk4-style) at ~15 dBm EIRP, 2.4 GHz'),
+  beaconFloodVisible: p(40, 'ASSUMPTION: about 40 fake names on the air at once'),
+  beaconFloodNewPerS: p(4, 'ASSUMPTION: the flooder rotates in about 4 new random names a second'),
+  beaconFloodCopies: p(3, 'ASSUMPTION: the flooder also beacons 3 fake access points under each nearby network\'s own name'),
+  uplinkFloodOwdMs: p(250, 'ASSUMPTION: a saturated access link (DDoS traffic fills the queue): about +250 ms one way of bufferbloat'),
+  uplinkFloodLoss: p(0.3, 'ASSUMPTION: about 30 % of packets dropped at the congested uplink'),
+  uplinkFloodJitterMs: p(40, 'ASSUMPTION: extra jitter from the full queue'),
+  wifiReturnRttMarginMs: p(150, 'ASSUMPTION: Infinet returns to a Wi-Fi only if its median probe round trip (last 10, after it was left for congestion) is within 150 ms of the current 5G'),
+  wifiReturnMaxLoss: p(0.25, 'ASSUMPTION: ...and at most 25 % of those probes were lost (a busy café loses a few %, a flooded uplink about half)'),
+
   liveProbeS: p(1.2, 'Live hotspots: the probe is simulated and takes a join (assocPskMs 50–200 ms) + DHCP (median ≈ 0.95 s, dhcpS) + 2 round trips'),
 
   // ───────────── Voice / quality ─────────────

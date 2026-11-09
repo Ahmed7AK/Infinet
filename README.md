@@ -46,12 +46,12 @@ npm run preview      # http://localhost:4173
 
 - After 45 s with no input it plays **attract mode** (the tour on a loop). Any key returns to free roam.
 - The phone pops up on its **Tunnel** app ("How it works") at the moments that matter: you → the networks → one encrypted tunnel → the anchor server → Hamad, drawn live from the phone's own state, with the check's stages (Appears · Screen · Quarantine · Verdict · Roam). Switch the pop-ups off in Lab.
-- The phone's **Lab** app holds demo controls (baseline, attacker on/off, café attack: open copy · perfect copy · downgrade, relays or tampers, power, forged disconnects, café blocks UDP, anchor server up/down and an 8 s anchor-down moment, LEO outage, map staleness, walking speed, pop-ups, seed). It is badged "Demo controls, not part of the product".
+- The phone's **Lab** app holds demo controls (baseline, attacker on/off, café attack: open copy · perfect copy · downgrade, relays or tampers, power, forged disconnects, café blocks UDP, two DDoS (beacon flood · uplink flood), a fake Site-Net in the desert, anchor server up/down and an 8 s anchor-down moment, LEO outage, map staleness, walking speed, pop-ups, seed). It is badged "Demo controls, not part of the product".
 - At the booth, run the preview build in Chrome full screen (`--kiosk`). Keep the Mac awake with `caffeinate -dims`. The page reloads itself after any uncaught error or a lost WebGL context.
 
 ## Live Wi-Fi scan (Security spec §6)
 
-`tools/scanner-mac/build.sh` builds **Infinet Scanner.app**: it serves the simulation on 127.0.0.1 and feeds it the Wi-Fi around the laptop. Name a phone hotspot `Infinet-Demo-<anything>` and it appears beside the walker, where it was first heard, and is screened for real; a second hotspot with the same name and no password is Blocked. Everyone else's network is an anonymous dot (name dropped, BSSID replaced by a salted hash before it leaves the app). Nothing is stored or uploaded, and the laptop never transmits to any network. Details, security and the message format for other scanners: [tools/scanner-mac/README.md](tools/scanner-mac/README.md). Without the app, `?live=replay` plays a synthetic example (labelled as such); the hosted site has no live scan.
+`tools/scanner-mac/build.sh` builds **Infinet Scanner.app**: it serves the simulation on 127.0.0.1 and feeds it the Wi-Fi around the laptop. Name a phone hotspot `Infinet-Demo-<anything>` and it appears beside the walker, where it was first heard, and is screened for real; a second hotspot with the same name and no password is Blocked. Everyone else's network is an anonymous dot (name dropped, BSSID replaced by a salted hash before it leaves the app). Nothing is stored or uploaded, and the laptop never transmits to any network. Details, security and the message format for other scanners: [tools/scanner-mac/README.md](tools/scanner-mac/README.md). On Linux, `npm run build && npm run scanner` does the same with `nmcli` ([tools/scanner-linux/README.md](tools/scanner-linux/README.md)). Without a scanner, `?live=replay` plays a synthetic example (labelled as such); the hosted site has no live scan.
 
 ## Tools
 
@@ -66,6 +66,7 @@ npm run cinematic                        # deterministic backup video → result
 
 - Batch results are in `results/<date>/SUMMARY.md`: mean, median, p95 and bootstrap 95 % CI per scenario and policy, plus charts and the property test.
 - URL hooks for recording: `?scene=cafe-twin&t=25&vision=1&view=truth&app=4&baseline=b2&stale=0.6&pause=1`.
+- Attacks from the URL: `&attack=beacon,uplink,site` (beacon flood · uplink flood · fake Site-Net), e.g. `?scene=building-exit&attack=uplink&vision=1`.
 - Assets (raw downloads go to `assets-src/downloads/`, not shipped):
   - `npx tsx tools/assets/fetch-polyhaven.ts` (CC0 skies, textures and models), then `Blender -b -P tools/blender/import_polyhaven.py` (models → `public/models/ph_*.glb`)
   - `npx tsx tools/assets/fetch-rocketbox.ts` (MIT people and clips), then `Blender -b -P tools/blender/import_rocketbox.py` (→ `public/models/people/`)

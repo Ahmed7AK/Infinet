@@ -9,7 +9,7 @@ import { LAYOUT, type SimSnapshot, type TrustView } from '../../engine/index';
 import { badge, fmtDb, fmtMs, fmtS, NET_NAME, type Tier } from '../tokens';
 import type { LabelItem, V3 } from '../scene/labels';
 import { driver } from '../driver';
-import { anchorPos, geoSat, isOnWifi, leoSat, visibleTx } from './NetworkLayer';
+import { anchorPos, copyOn, geoSat, isOnWifi, leoSat, realNet, visibleTx } from './NetworkLayer';
 
 const w3 = (x: number, y: number, h = 0): V3 => [x, h, -y];
 const TX = LAYOUT.transmitters;
@@ -60,7 +60,7 @@ export function worldLabels(s: SimSnapshot, view: string, vision: boolean): Labe
       }
       const e = t.bssid ? scan.get(t.bssid) : undefined;
       // the copy uses the café's name: that is the attack. Only the truth view says which is which.
-      const ssid = t.attacker && view === 'belief' ? NET_NAME['cafe-guest'] : NET_NAME[t.net] ?? t.ssid ?? t.net;
+      const ssid = t.attacker && view === 'belief' ? NET_NAME[realNet(t.net)] : NET_NAME[t.net] ?? t.ssid ?? t.net;
       out.push({
         key: `tag:${t.id}`, pos: w3(t.pos[0], t.pos[1], t.pos[2] + 0.45), z: 1,
         node: (
@@ -89,9 +89,16 @@ export function worldLabels(s: SimSnapshot, view: string, vision: boolean): Labe
   // live networks from the laptop's scanner (spec §6), placed where they were first heard. Demo hotspots
   // (Infinet-Demo-…) are named, in both views; everyone else is an anonymous dot, in Vision only.
   const [wx, wy] = s.player.pos;
-  const anon = s.scan.filter((e) => e.live && e.anon && e.pos)
+  const anon = s.scan.filter((e) => e.pos && ((e.live && e.anon) || e.net === 'flood'))
     .sort((a, b) => Math.hypot(a.pos![0] - wx, a.pos![1] - wy) - Math.hypot(b.pos![0] - wx, b.pos![1] - wy)).slice(0, ANON_DOTS);
-  if (vision) for (const e of anon) out.push({ key: `anon:${e.bssid}`, pos: w3(e.pos![0], e.pos![1], 1.0), z: 0, node: <div className="adot" title="Someone else's network: anonymous, never joined" /> });
+  if (vision) {
+    for (const e of anon) {
+      const flood = e.net === 'flood';
+      out.push({ key: `anon:${e.bssid}`, pos: w3(e.pos![0], e.pos![1], 1.0), z: 0, node: <div className={`adot ${flood ? 'flood' : ''}`} title={flood ? 'Fake beacon from the flood (simulation): never joined' : "Someone else's network: anonymous, never joined"} /> });
+    }
+    const fp = s.truth.floodPos;
+    if (fp && view !== 'belief') out.push({ key: 'flooder', pos: w3(fp[0], fp[1], 2.0), z: 2, node: <div className="ntag wifi threat"><span className="dot" /><span className="n">Beacon flooder</span><span className="d">simulation view · dozens of fake names</span></div> });
+  }
   for (const e of s.scan) {
     if (!e.live || e.anon || !e.pos) continue;
     const tv = s.infinet.trust[e.bssid];
@@ -119,16 +126,18 @@ export function worldLabels(s: SimSnapshot, view: string, vision: boolean): Labe
       continue;
     }
     // the copy can wear the café's own BSSID (spec variants), so place it by what it is, not by its address
-    const t = tv.net === 'twin' ? TX.find((x) => x.attacker) : TX.find((x) => x.bssid === tv.bssid);
-    if (!t || (t.attacker && !s.truth.attackerOn)) continue;
-    const name = t.attacker ? NET_NAME['cafe-guest'] : NET_NAME[t.net] ?? tv.ssid;
+    if (tv.net === 'flood') continue;                                 // the flood's copies: dots, no hologram each
+    const t = tv.net === 'twin' || tv.net === 'site-twin' ? TX.find((x) => x.net === tv.net) : TX.find((x) => x.bssid === tv.bssid);
+    if (!t || (t.attacker && !copyOn(s, t))) continue;
+    const name = t.attacker ? NET_NAME[realNet(t.net)] : NET_NAME[t.net] ?? tv.ssid;
     out.push({ key: `trust:${tv.bssid}`, pos: w3(t.pos[0], t.pos[1], t.pos[2] + 0.5), z: 3, card: 'above', node: holo(tv, name) });
   }
 
   // what the copy gets from the comparison phone (truth only)
   const base = s.policies[s.lab.baseline];
-  if (view !== 'belief' && s.truth.attackerOn && base?.activePath === 'wifi:twin') {
-    const t = TX.find((x) => x.attacker)!;
+  const onCopy = base?.activePath === 'wifi:twin' || base?.activePath === 'wifi:site-twin' ? TX.find((x) => `wifi:${x.net}` === base.activePath) : undefined;
+  if (view !== 'belief' && onCopy && copyOn(s, onCopy)) {
+    const t = onCopy;
     out.push({
       key: 'attacker', pos: w3(t.pos[0], t.pos[1], 1.1), z: 3, card: 'below',
       node: (
@@ -146,7 +155,7 @@ export function worldLabels(s: SimSnapshot, view: string, vision: boolean): Labe
 
   // predicted edge (both views)
   const inf = s.infinet;
-  if (isOnWifi(s.policies.infinet) && inf.ttlS !== undefined && inf.ttlS < 10 && inf.edgePoint) {
+  if (isOnWifi(s.policies.infinet) && !!s.policies.infinet?.wifiAssoc && inf.ttlS !== undefined && inf.ttlS < 10 && inf.edgePoint) {
     out.push({ key: 'edge', pos: w3(inf.edgePoint[0], inf.edgePoint[1], 0.6), z: 2, node: <div className="edgetag">Wi-Fi edge ahead · <b>{fmtS(inf.ttlS)}</b></div> });
   }
 

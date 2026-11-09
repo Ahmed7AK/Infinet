@@ -14,7 +14,8 @@
     "rfmap": "tsx tools/rfmap/build.ts",
     "shots": "tsx tools/record/shots.ts",
     "qa": "tsx tools/record/qa.ts",
-    "cinematic": "tsx tools/record/cinematic.ts"
+    "cinematic": "tsx tools/record/cinematic.ts",
+    "scanner": "tsx tools/scanner-linux/scanner.ts"
   },
   "dependencies": {
     "@fontsource/inter": "5.3.0",

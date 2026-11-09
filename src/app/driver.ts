@@ -380,6 +380,13 @@ class Driver {
       case 'sat.pattern': add('info', `${Math.round(e.periodS)} s satellite pattern detected`, 'Voice protected ahead of each hiccup'); break;
       case 'sat.failover': if (e.to === 'GEO') add('heads', 'Satellite backup active', `Round trip ${Math.round(e.rttMs)} ms · call protected`); break;
       case 'call.frozen': if (e.policy === 'infinet') add('threat', 'Call frozen', 'No voice arriving · counting seconds'); break;
+      case 'attack.on':
+        if (e.attack === 'beacon-flood') add('threat', 'Beacon flood nearby (DDoS)', 'A cheap device floods fake network names, some copying the ones around you');
+        else if (e.attack === 'uplink-flood') add('threat', 'Wi-Fi uplink flooded (DDoS)', 'The signal stays strong; packets behind it are lost and late');
+        else add('threat', 'A fake Site-Net is on the air', 'Open, new device, from a vehicle outside the fence');
+        break;
+      case 'attack.off': add('info', e.attack === 'beacon-flood' ? 'Beacon flood stopped' : e.attack === 'uplink-flood' ? 'Uplink flood stopped' : 'Fake Site-Net gone', 'Simulation: the attack was switched off in Lab'); break;
+      case 'path.congested': add('heads', `${e.label}: strong signal, ${e.lossPct} % lost · moved to 5G`, `Its own probes saw it (${e.rttMs < 1e5 ? `${e.rttMs} ms round trip` : 'no answers'}); bars alone would have said stay`); break;
       default: break;
     }
   }

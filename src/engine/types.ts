@@ -187,6 +187,10 @@ export interface TruthView {
   attackVariant: AttackVariant;
   /** the BSSID the copy advertises (the café's own in the copied-BSSID variants) */
   attackerBssid?: string;
+  /** the fake Site-Net is on the air (desert) */
+  siteTwinOn: boolean;
+  /** where the beacon-flood device is, while it runs */
+  floodPos?: Vec2;
   uplink: 'LEO' | 'GEO' | 'none';
   leoOutage: boolean;
   routerFailoverAt?: number;
@@ -226,7 +230,13 @@ export type SimEvent =
   | { t: number; type: 'attacker.start'; ssid: string; mode: string; offsetDb: number; variant: AttackVariant }
   | { t: number; type: 'region.enter' | 'region.exit'; region: string }
   | { t: number; type: 'falsedead'; policy: PolicyId; link: string }
-  | { t: number; type: 'nocoverage'; aheadS: number };
+  | { t: number; type: 'nocoverage'; aheadS: number }
+  /** Lab attacks switched on/off: beacon flood (DDoS on network choice), uplink flood (DDoS on a Wi-Fi's internet), fake Site-Net */
+  | { t: number; type: 'attack.on' | 'attack.off'; attack: LabAttack }
+  /** Infinet left a Wi-Fi whose signal is strong but whose packets are lost or late (its own probes saw it) */
+  | { t: number; type: 'path.congested'; link: string; label: string; lossPct: number; rttMs: number };
+
+export type LabAttack = 'beacon-flood' | 'uplink-flood' | 'site-copy';
 
 export interface LabState {
   attackerEnabled: boolean;
@@ -243,6 +253,13 @@ export interface LabState {
   anchorDown: boolean;
   /** the real café Wi-Fi blocks UDP, as many hotels and offices do: the probe gets no answer */
   cafeBlocksUdp: boolean;
+  /** DDoS on network choice: a cheap device near the walker floods beacons (dozens of new names a second, plus
+   *  copies of the nearby network's name). Beacons only: nothing answers behind them. */
+  beaconFlood: boolean;
+  /** DDoS on the internet behind every Wi-Fi: the signal stays strong, packets are lost and late */
+  uplinkFlood: boolean;
+  /** desert: a fake "Site-Net" (open, new BSSID) from a vehicle outside the fence */
+  siteTwin: boolean;
 }
 
 export const DEFAULT_LAB: LabState = {
@@ -258,4 +275,7 @@ export const DEFAULT_LAB: LabState = {
   attackVariant: 'copy',
   anchorDown: false,
   cafeBlocksUdp: false,
+  beaconFlood: false,
+  uplinkFlood: false,
+  siteTwin: false,
 };

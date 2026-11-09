@@ -42,7 +42,11 @@ export const anchorPos = (desert: boolean): V3 => { const a = (desert ? LAYOUT.v
 const internetPos = (): V3 => { const a = LAYOUT.visual.internet.pos; return w3(a[0], a[1], 22); };
 const gatewayPos = (): V3 => { const a = LAYOUT.visual.gateway.pos; return w3(a[0], a[1], 6); };
 
-export const visibleTx = (s: SimSnapshot) => TX.filter((t) => (s.zone === 'desert' ? t.pos[0] > 5000 : t.pos[0] < 5000)).filter((t) => !t.attacker || s.truth.attackerOn);
+/** is this copy on the air? (the café copy and the desert copy are separate attacks) */
+export const copyOn = (s: SimSnapshot, t: (typeof TX)[number]) => (t.net === 'site-twin' ? s.truth.siteTwinOn : s.truth.attackerOn);
+/** the real network a copy imitates */
+export const realNet = (net: string) => (net === 'twin' ? 'cafe-guest' : net === 'site-twin' ? 'site-net' : net);
+export const visibleTx = (s: SimSnapshot) => TX.filter((t) => (s.zone === 'desert' ? t.pos[0] > 5000 : t.pos[0] < 5000)).filter((t) => !t.attacker || copyOn(s, t));
 
 /** where a path's radio hop ends, from the policy's own association */
 export function endpoint(path: string, pv?: PolicyView | null): V3 | null {
@@ -65,7 +69,7 @@ export function onward(path: string, s: SimSnapshot): V3[] {
     const term = s.truth.uplink === 'GEO' ? dishPos() : terminalPos();
     return [term, sat, gatewayPos(), anchorPos(true)];
   }
-  if (path === 'wifi:twin') return s.truth.attackerMode === 'relay' ? [internetPos(), anchorPos(desert)] : [];
+  if (path === 'wifi:twin' || path === 'wifi:site-twin') return s.truth.attackerMode === 'relay' ? (desert ? [anchorPos(true)] : [internetPos(), anchorPos(desert)]) : [];
   return [internetPos(), anchorPos(desert)];
 }
 const phonePos = (s: SimSnapshot): V3 => w3(s.player.pos[0], s.player.pos[1], 1.28);
@@ -167,7 +171,7 @@ function Heatmap() {
     if (!useUi.getState().vision && visionK.v < 0.01) return;
     const s = driver.snap, sim = driver.sim;
     const cx = Math.round(s.player.pos[0] / 8) * 8, cy = Math.round(s.player.pos[1] / 8) * 8;
-    const key = `${cx},${cy},${view},${sim.mapsVersion},${s.truth.attackerOn},${s.lab.attackerOffsetDb},${sim.seed},${sim.scenario}`;
+    const key = `${cx},${cy},${view},${sim.mapsVersion},${s.truth.attackerOn},${s.truth.siteTwinOn},${s.lab.attackerOffsetDb},${sim.seed},${sim.scenario}`;
     if (key !== st.key && st.job?.key !== key) st.job = { key, cx, cy, row: 0, buf: new Uint16Array(HN * HN * 4) };
     const j = st.job;
     if (!j) return;
@@ -255,9 +259,9 @@ function Beacons({ s }: { s: SimSnapshot }) {
       // the ring is the colour of Infinet's verdict on this AP (its own memory, P5): blocked rings read red at once
       const tx = aps[i];
       const snap = driver.snap;
-      const bssid = tx.attacker ? snap.truth.attackerBssid : tx.bssid;
+      const bssid = tx.id === 'twin' ? snap.truth.attackerBssid : tx.bssid;
       const tv = bssid ? snap.infinet.trust[bssid] : undefined;
-      const tier = tv && (!tx.attacker || tv.net === 'twin') ? tv.tier : undefined;
+      const tier = tv && (!tx.attacker || tv.net === tx.net) ? tv.tier : undefined;
       const hex = tier === 'trusted' ? tech.ok : tier === 'tunnel' ? tech.tunnel : tier === 'blocked' ? tech.threat : tier === 'checking' ? tech.check : tier === 'unreachable' ? '#8A93A6' : tech.wifi;
       if (mats[i].userData.hex !== hex) { mats[i].color.copy(hdr(hex, 1.8)); mats[i].userData.hex = hex; }
       mats[i].opacity = (1 - u) * (tier === 'blocked' ? 0.8 : 0.5) * visionK.v;

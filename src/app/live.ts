@@ -16,7 +16,7 @@
  *       "band": "2.4" | "5" | "6", "rssiDbm": -54, "anon": false } ] }
  *   { "v": 1, "type": "status", "state": "scanning" | "no-location" | "no-wifi" }
  * Security is one of OPEN · WEP · WPA-TKIP · OWE · WPA2-PSK · WPA2/3 · WPA2-ENT · WPA3-SAE · WPA3-ENT.
- * Rashid's Linux scanner can send exactly the same messages.
+ * The Linux scanner (tools/scanner-linux) sends exactly the same messages.
  *
  * URL: ?live=1&token=… (the page is served by the scanner), ?live=<port>&token=… (the scanner on another
  * port, for development; start it with --dev-origin), or ?live=replay (a synthetic example, labelled as such).

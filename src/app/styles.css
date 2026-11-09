@@ -176,6 +176,7 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 .ntag.off { opacity: 0.6; }
 .ntag.live { border-color: rgba(251, 191, 36, 0.55); } .ntag.live .livetag { margin-left: 0; }
 .adot { width: 9px; height: 9px; border-radius: 50%; background: #8A93A6; opacity: 0.75; box-shadow: 0 0 0 3px rgba(138, 147, 166, 0.18); }
+.adot.flood { background: #F87171; opacity: 0.8; box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.22); }
 .simtag.live { color: var(--check); border-color: rgba(251, 191, 36, 0.5); margin-top: 6px; }
 .ntag .n { font-weight: 600; }
 .ntag .d { font: 400 13px/1.2 var(--mono); color: var(--mute); }

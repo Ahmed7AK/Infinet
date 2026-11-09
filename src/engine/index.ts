@@ -4,7 +4,7 @@
  * The same engine drives the live demo (browser) and the batch experiments (Node).
  */
 import { v } from './params';
-import { Rng } from './rng';
+import { crn, hashString, Rng } from './rng';
 import {
   DEFAULT_LAB, LIVE_POLICIES, POLICY_LABEL, type LabState, type LinkView, type PacketVis, type PlayerInput, type PolicyId,
   type PolicyView, type ScanEntry, type ScenarioId, type SimEvent, type SimSnapshot, type Vec2, type ZoneId,
@@ -96,6 +96,8 @@ export interface Sim {
 
 const TWIN_UPLINK_OWD_MS = 25; // ASSUMPTION: attacker bridges to their own tethered LTE uplink
 const DEAUTH_PERIOD_S = 2;     // ASSUMPTION: forged disconnects every 2 s while the attack runs
+const LAB_ATTACKS = [['beaconFlood', 'beacon-flood'], ['uplinkFlood', 'uplink-flood'], ['siteTwin', 'site-copy']] as const;
+const hx = (n: number) => (n & 255).toString(16).padStart(2, '0');
 
 class SimImpl implements Sim {
   readonly seed: number;
@@ -121,6 +123,8 @@ class SimImpl implements Sim {
   private follower: RouteFollower | null;
   private mode: 'live' | 'scripted';
   private attacker = { on: false, startT: 0, eirp: 20, lastDeauth: -100, mode: 'intercept' as 'intercept' | 'relay' };
+  /** Lab "beacon flood": where the flooding device sits and which fake BSSIDs are on the air right now */
+  private flood = { placed: false, pos: [0, 0] as Vec2, startT: 0, shown: new Set<string>() };
   private region: string | null = null;
   private pendingTriggers: Array<{ at: number; do: string }> = [];
   private firedTriggers = new Set<string>();
@@ -193,8 +197,13 @@ class SimImpl implements Sim {
   }
 
   setLab(lab: Partial<LabState>) {
+    const prev = this.lab;
     const prevStale = this.lab.mapStaleness;
     this.lab = { ...this.lab, ...lab };
+    for (const [k, attack] of LAB_ATTACKS) {
+      if (lab[k] !== undefined && lab[k] !== prev[k]) this.emit({ t: this.t, type: lab[k] ? 'attack.on' : 'attack.off', attack });
+    }
+    if (lab.beaconFlood === false) this.stopFlood();
     if (lab.mapStaleness !== undefined && lab.mapStaleness !== prevStale) { this.maps = buildMaps(this.seed, this.lab.mapStaleness); this.mapsVersion++; }
     if (lab.walkSpeed !== undefined && this.follower) this.follower.speed = lab.walkSpeed;
     if (lab.attackerEnabled === false) this.attacker.on = false;
@@ -207,11 +216,8 @@ class SimImpl implements Sim {
     let dbm = -200, txId: string | null = null;
     for (const m of this.maps.byTx.values()) {
       if (m.tx.kind !== 'wifi') continue;
-      let eirp = m.tx.eirpDbm ?? 20;
-      if (m.tx.attacker) {
-        if (which === 'belief' || !this.attacker.on) continue;
-        eirp = this.attacker.eirp;
-      }
+      if (m.tx.attacker && (which === 'belief' || !this.txOn(m.tx))) continue;
+      const eirp = this.txEirp(m.tx);
       const g = which === 'belief' ? m.belief : m.truth;
       if (!g || !g.contains(p)) continue;
       const s = eirp + g.sample(p);
@@ -273,6 +279,64 @@ class SimImpl implements Sim {
       case 'downgrade': return { bssid: cafe.bssid!, security: 'OPEN' };
       default: return { bssid: tx.bssid!, security: tx.security! };
     }
+  }
+
+  /** is this transmitter on the air? Real access points always; the copies only while their attack runs */
+  private txOn(tx: Transmitter): boolean {
+    if (!tx.attacker) return true;
+    if (tx.id === 'twin') return this.attacker.on;
+    if (tx.net === 'site-twin') return this.lab.siteTwin;
+    return false;
+  }
+  private txEirp(tx: Transmitter): number { return tx.id === 'twin' ? this.attacker.eirp : tx.eirpDbm ?? 20; }
+
+  /** Lab "beacon flood" (DDoS on network choice): a cheap device beside the walker beacons dozens of random names,
+   *  rotating in a few new ones a second, plus fake access points under the name of each network heard nearby.
+   *  Beacons only: nothing answers behind them. The random names are drawn as anonymous dots (spec §6: never named). */
+  private floodScan(t: number, pos: Vec2, heard: Map<string, { rssi: number; tx: Transmitter }>): ScanEntry[] {
+    if (!this.flood.placed) {
+      const h = (this.player.headingDeg * Math.PI) / 180;
+      this.flood = { placed: true, pos: [pos[0] + Math.cos(h) * 6, pos[1] - Math.sin(h) * 6], startT: t, shown: new Set() };
+    }
+    const F = this.flood.pos;
+    const d = Math.max(1, Math.hypot(pos[0] - F[0], pos[1] - F[1]));
+    const base = v('beaconFloodEirpDbm') - (40 + 20 * Math.log10(d)); // free space at 2.4 GHz (≈40 dB at 1 m)
+    const out: ScanEntry[] = [];
+    const tick = Math.floor(t * 10);
+    if (base > -92) {
+      const k0 = Math.floor((t - this.flood.startT) * v('beaconFloodNewPerS'));
+      for (let i = k0; i < k0 + v('beaconFloodVisible'); i++) {
+        const n = i % 4096;
+        const ang = n * 2.39996, r = 0.6 + (n % 5) * 0.35;
+        out.push({
+          bssid: `02:f1:0d:${hx(n >> 8)}:${hx(n)}:01`, ssid: '', ssidHex: '', net: 'flood', security: 'WPA2-PSK', pmf: 'none',
+          channel: [1, 6, 11][n % 3], band: '2.4', rssiDbm: base - 4 * crn(this.seed, n, tick, 41), anon: true,
+          pos: [F[0] + Math.cos(ang) * r, F[1] + Math.sin(ang) * r],
+        });
+      }
+      // fake access points under the names heard here (the flooder copies what is around)
+      for (const [net, { rssi, tx }] of heard) {
+        if (tx.attacker || !tx.ssid || rssi < -85) continue;
+        const id = hashString(net);
+        for (let c = 0; c < v('beaconFloodCopies'); c++) {
+          out.push({
+            bssid: `02:f1:0c:${hx(id >> 8)}:${hx(id)}:${hx(c)}`, ssid: tx.ssid, ssidHex: this.hexOf(tx.ssid), net: 'flood', security: tx.security!, pmf: 'none',
+            channel: tx.channel ?? 6, band: '2.4', rssiDbm: base + 2 - 2 * c - 2 * crn(this.seed, id, c, tick, 42),
+            pos: [F[0] + 0.4 * c, F[1] - 0.4],
+          });
+        }
+      }
+    }
+    // a name that comes on the air is new; one that leaves is forgotten (bounded memory, spec A5)
+    const now = new Set<string>();
+    for (const e of out) { now.add(e.bssid); if (!this.flood.shown.has(e.bssid)) this.firstSeen.set(e.bssid, t); }
+    for (const b of this.flood.shown) if (!now.has(b)) this.firstSeen.delete(b);
+    this.flood.shown = now;
+    return out;
+  }
+  private stopFlood() {
+    for (const b of this.flood.shown) this.firstSeen.delete(b);
+    this.flood = { placed: false, pos: [0, 0], startT: 0, shown: new Set() };
   }
 
   eventsSince(cursor: number) {
@@ -391,15 +455,15 @@ class SimImpl implements Sim {
     for (const m of this.maps.byTx.values()) {
       const tx = m.tx;
       if (tx.kind !== 'wifi') continue;
-      if (tx.attacker && !this.attacker.on) continue;
-      const eirp = tx.attacker ? this.attacker.eirp : tx.eirpDbm ?? 20;
+      if (!this.txOn(tx)) continue;
+      const eirp = this.txEirp(tx);
       const truth = m.truth.sample(pos, -250) + eirp;
       if (truth < -150) continue;
       const prev = bestByNet.get(tx.net);
       if (!prev || truth > prev.rssi) bestByNet.set(tx.net, { rssi: truth, tx });
       const meas = truth + this.fading.next(tx.id);
       if (meas > -92) {
-        const id = tx.attacker ? this.twinIdent(tx) : { bssid: tx.bssid!, security: tx.security! };
+        const id = tx.id === 'twin' ? this.twinIdent(tx) : { bssid: tx.bssid!, security: tx.security! };
         if (!this.firstSeen.has(id.bssid)) this.firstSeen.set(id.bssid, t);
         // two transmitters under one BSSID (the copied-BSSID variants): the scan shows the one heard loudest
         const dup = scan.findIndex((x) => x.bssid === id.bssid);
@@ -408,6 +472,7 @@ class SimImpl implements Sim {
         if (dup >= 0) scan[dup] = entry; else scan.push(entry);
       }
     }
+    if (this.lab.beaconFlood) for (const e of this.floodScan(t, pos, bestByNet)) scan.push(e);
     for (const e of this.liveScan()) scan.push(e);
     const byBssid = new Map(scan.map((e) => [e.bssid, e] as const));
 
@@ -431,7 +496,7 @@ class SimImpl implements Sim {
         hops[0].owdMs += v('cafeAirtimeExtraMs');
         hops.push({ name: 'Café broadband', owdMs: v('cafeBackhaulOwdMs') });
         owd += v('cafeBackhaulOwdMs');
-      } else if (net === 'twin') {
+      } else if (net === 'twin' || net === 'site-twin') {
         hops.push({ name: "Attacker's laptop → own uplink", owdMs: TWIN_UPLINK_OWD_MS });
         owd += TWIN_UPLINK_OWD_MS;
         jitter += 6;
@@ -447,13 +512,25 @@ class SimImpl implements Sim {
           owd += u.owdMs + v('leoPopOwdMs');
         }
       }
+      if (this.lab.uplinkFlood && !tx.attacker) {
+        // DDoS on this network's internet: the radio is fine, the queue behind it is full
+        hops.push({ name: 'Uplink flooded (DDoS traffic)', owdMs: v('uplinkFloodOwdMs') });
+        owd += v('uplinkFloodOwdMs');
+        jitter += v('uplinkFloodJitterMs');
+        loss += v('uplinkFloodLoss');
+      }
       hops.push({ name: 'Internet to the far end', owdMs: v('internetOwdMs') });
       owd += v('internetOwdMs');
       paths.set(`wifi:${net}`, {
         id: `wifi:${net}`, kind: 'wifi', label: NET_LABEL[net] ?? net, up: rssi > -92, owdMs: owd, jitterMs: jitter, loss: Math.min(1, loss), hops,
-        rssiDbm: rssi, snrDb: snr, ipEpoch, uplink, attacker: !!tx.attacker, captivePortal: !!tx.captivePortal, security: tx.attacker ? this.twinIdent(tx).security : tx.security,
+        rssiDbm: rssi, snrDb: snr, ipEpoch, uplink, attacker: !!tx.attacker, captivePortal: !!tx.captivePortal, security: tx.id === 'twin' ? this.twinIdent(tx).security : tx.security,
         udpBlocked: net === 'cafe-guest' && this.lab.cafeBlocksUdp,
       });
+    }
+
+    // the flood's fake access points: beacons only, nobody answers a join
+    if (this.lab.beaconFlood && scan.some((e) => e.net === 'flood' && !e.anon)) {
+      paths.set('wifi:flood', { id: 'wifi:flood', kind: 'wifi', label: NET_LABEL.flood, up: false, owdMs: 0, jitterMs: 0, loss: 1, hops: [], ipEpoch: 0, attacker: true, security: 'WPA2-PSK' });
     }
 
     // cellular paths + measurements
@@ -492,7 +569,7 @@ class SimImpl implements Sim {
   // ───────────── outputs ─────────────
   snapshot(): SimSnapshot {
     const ctx = this.ctx(false);
-    const links: LinkView[] = [...this.paths.values()].map((p) => ({
+    const links: LinkView[] = [...this.paths.values()].filter((p) => p.id !== 'wifi:flood').map((p) => ({
       id: p.id, kind: p.id === 'wifi:site-net' ? 'sat' : p.kind, label: p.label, up: p.up, rssiDbm: p.rssiDbm, rsrpDbm: p.rsrpDbm, sinrDb: p.sinrDb, snrDb: p.snrDb,
       rttMs: 2 * p.owdMs, lossPct: 100 * p.loss, jitterMs: p.jitterMs, hops: p.hops, uplink: p.uplink,
     }));
@@ -548,6 +625,7 @@ class SimImpl implements Sim {
         attackerPos: this.attacker.on ? [txById('twin').pos[0], txById('twin').pos[1]] : undefined,
         attackerOn: this.attacker.on, attackerMode: this.attacker.mode, attackVariant: this.lab.attackVariant,
         attackerBssid: this.attacker.on ? this.twinIdent(txById('twin')).bssid : undefined,
+        siteTwinOn: this.lab.siteTwin, floodPos: this.flood.placed ? [...this.flood.pos] as Vec2 : undefined,
         uplink: this.sat.uplink, leoOutage: this.lab.leoOutage, routerFailoverAt: this.sat.failoverAt ?? undefined,
         leoBoundaryPhase: this.sat.boundaryPhase(this.t), leoSpikeActive: !!leoW, leoSatIndex: this.sat.satIndex,
       },
