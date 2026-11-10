@@ -120,6 +120,11 @@ The other 33 GLBs in `public/models/` are built for this project by script in Bl
 ## Fonts (SIL Open Font License 1.1, bundled via Fontsource, no CDN)
 - Inter — Rasmus Andersson
 - JetBrains Mono — JetBrains
+- Chakra Petch — Cadson Demak (the film only, per the Infinet style guide)
+- IBM Plex Sans, IBM Plex Mono, IBM Plex Sans Arabic — IBM (the film only, per the Infinet style guide)
+
+## Brand
+- The Infinet lockup in `tools/film/brand/` is our own master artwork from the Infinet style guide v1.1 (page 5), taken as vectors: its cell rectangles and its glyph outlines.
 
 ## Icons
 - Lucide (ISC licence), via `lucide-react`.

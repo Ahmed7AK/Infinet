@@ -56,7 +56,7 @@ npm run preview      # http://localhost:4173
 
 ## The film and the real-world demo
 
-- **[media/infinet-film.mp4](media/infinet-film.mp4)**: the judges' film (about 75 s, no sound). The problem, the idea, the three scenes, the numbers from the batch, and what is built, simulated and next. The booth cut adds our hall and stays on the booth laptop.
+- **[media/infinet-film.mp4](media/infinet-film.mp4)**: the judges' film (about 77 s, no sound, loops), in the style guide's look. The title, the idea as the handover timeline, three chapters shot from several angles with both phones' states read from the sim, the results from the batch, and what is built, simulated and next. The booth cut adds a fourth chapter in our hall (about 89 s) and stays on the booth laptop.
 - **[REAL_WORLD_DEMO.md](REAL_WORLD_DEMO.md)**: ways to show it working in the real world, and the morning go / no-go for the live hotspot test.
 
 ## Tools
@@ -70,6 +70,7 @@ npm run qa                               # booth checks against the preview buil
 npm run cinematic                        # deterministic backup video → results/cinematic (needs npm run dev + ffmpeg)
 npm run film -- --cut public             # the judges' film → media/infinet-film.mp4 (needs npm run dev + ffmpeg)
 npm run film -- --cut booth              # the same with our hall → venue-private/media/ (booth laptop only, never pushed)
+npm run film -- --cut booth --board      # three stills per shot → results/cinematic/board-booth.jpg, to check angles fast
 ```
 
 - Batch results are in `results/<date>/SUMMARY.md`: mean, median, p95 and bootstrap 95 % CI per scenario and policy, plus charts and the property test.

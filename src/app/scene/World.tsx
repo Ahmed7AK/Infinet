@@ -333,6 +333,10 @@ function CameraRig() {
     // debug / recording hook (?cam=x,y,h,lookX,lookY,lookH in engine metres): a fixed camera for checking a spot
     const dbg = (window as { __infinetCam?: number[] }).__infinetCam;
     if (dbg) { k.pos.set(dbg[0], dbg[2], -dbg[1]); k.look.set(dbg[3], dbg[5], -dbg[4]); }
+    // the film's lens (tools/record/film.ts): a field of view per shot, back to 52° when it is cleared
+    const fov = (window as { __infinetFov?: number }).__infinetFov ?? 52;
+    const pc = camera as THREE.PerspectiveCamera;
+    if (pc.fov !== fov) { pc.fov = fov; pc.updateProjectionMatrix(); }
     camera.position.copy(k.pos);
     for (const o of camOccluders) {
       o.obj.visible = o.h !== undefined
