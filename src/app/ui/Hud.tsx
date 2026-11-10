@@ -34,9 +34,11 @@ export function SceneTitle() {
   const def = SCENARIOS[sc];
   return (
     <div className="scene">
-      <div className="k">Scene {SCENE_NUM[sc]} of {SCENE_ORDER.length} · {PLACE[sc]}</div>
-      <div className="t">{def.label}</div>
-      <div className="p">{def.proves}</div>
+      <div className="hd glass">
+        <div className="k">Scene {SCENE_NUM[sc]} of {SCENE_ORDER.length} · {PLACE[sc]}</div>
+        <div className="t">{def.label}</div>
+        <div className="p">{def.proves}</div>
+      </div>
       {/* jump instead of walking: each scene, and straight to the moment that matters */}
       <div className="jump interactive">
         {SCENE_ORDER.map((p, i) => (

@@ -102,7 +102,7 @@ Fetched by `tools/assets/fetch-rocketbox.ts` (only the files used), converted by
 
 | File | Rocketbox source |
 |---|---|
-| people/player.glb | Male_Adult_08 |
+| people/player.glb | Male_Adult_21 (kandura, ghutra and agal; the import recolours the red-and-white head-cloth texture to plain white) |
 | people/office_f1, office_m1, office_m2, office_f2, office_m3 | Business_Female_01, Business_Male_06, Male_Adult_21, Female_Adult_09, Business_Male_02 |
 | people/street_m1, street_f1, barista | Male_Adult_19, Female_Adult_10, Male_Adult_09 |
 | people/cafe_f1, cafe_m1, cafe_f2, cafe_m2 | Female_Adult_14, Male_Adult_02, Female_Adult_08, Male_Adult_11 |

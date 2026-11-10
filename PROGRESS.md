@@ -22,6 +22,7 @@
 | Hosting for feedback: public repo github.com/Ahmed7AK/Infinet, live at https://infinet-sim.vercel.app (redeploys on every push to main), first-load progress screen | Done |
 | Cinematic recorder | Done (`npm run cinematic`); full video not yet rendered |
 | **The judges' film** (10 Nov, redone in the style guide's look): title card that loops, the idea as the handover timeline, three chapters (four on the booth cut, with our hall) of three shots each from different angles, a brand overlay with both phones and the trust check read from the sim, results as average and worst run, built · simulated · next, end card. `npm run film -- --cut public` → `media/infinet-film.mp4` (~77 s); `--cut booth` → `venue-private/media/infinet-film-booth.mp4` (~89 s, never pushed) | Done |
+| **Booth polish** (10 Nov): the player is an Emirati (white kandura, white ghutra, black agal); colour and contrast back after AgX, stronger desert sun; the HUD fits the laptop's own 16:10 screen (title on glass, strip narrows, legend on one line); the raised phone no longer overflows with the Sign in card; bystanders the camera stands in are hidden | Done · tsc, eslint, 68 tests, `npm run qa` all PASS on the rebuilt local build (headless 34 fps, indicative) |
 | Real-world demo ideas and the morning hotspot go / no-go → `REAL_WORLD_DEMO.md` | Written; nothing in it tried yet |
 
 ## Batch headline (results/2026-11-10, 300 runs per scenario, simulated)

@@ -8,6 +8,7 @@
  * If the anchor stops answering, Infinet fails closed: nothing leaves the tunnel, messages wait (§5, D2).
  */
 import { mobileWord, type SimSnapshot, type Tier, type TrustView } from '../../engine/index';
+import { driver } from '../driver';
 import { badge, fmtMs, pathName, tech, ui } from '../tokens';
 
 type RoadState = 'carrying' | 'standby' | 'checking' | 'blocked' | 'unreachable';
@@ -181,10 +182,12 @@ export function TunnelApp({ s }: { s: SimSnapshot }) {
   const xs = cols(m.roads.length);
   const ac = m.anchorLost ? tech.threat : tech.tunnel;
   const toneC = m.caption.tone === 'bad' ? tech.threat : m.caption.tone === 'warn' ? tech.check : tech.tunnel;
+  // while the sign-in offer sits at the top of the phone it is the message: the caption under the diagram gives it the room
+  const offer = driver.signInOffer(s) !== null;
   return (
     <>
       <h4 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>How it works<span className="sub" style={{ fontSize: 13 }}>live, from this phone</span></h4>
-      <svg width={W - 32} viewBox={`0 0 ${W} ${H}`} style={{ alignSelf: 'center', overflow: 'visible' }} role="img" aria-label="Diagram: your phone, the networks, the encrypted tunnel, the anchor server and the other person">
+      <svg width={W - 32} viewBox={`0 0 ${W} ${H}`} style={{ alignSelf: 'center', overflow: 'visible', flex: '0 1 auto', minHeight: 0 }} role="img" aria-label="Diagram: your phone, the networks, the encrypted tunnel, the anchor server and the other person">
         {/* the other person and the normal call leg */}
         <line x1={OTHER.x} y1={OTHER.y + 16} x2={ANCHOR.x} y2={ANCHOR.y - 24} stroke={tech.wired} strokeOpacity={0.55} strokeWidth={1.6} />
         <circle cx={OTHER.x} cy={OTHER.y} r={15} fill="#141922" stroke={tech.wired} strokeOpacity={0.7} />
@@ -210,10 +213,12 @@ export function TunnelApp({ s }: { s: SimSnapshot }) {
       <div className="stages" aria-label="Where the check is">
         {STAGES.map((st, i) => <span key={st} className={i === m.stage ? 'on' : i < m.stage ? 'done' : ''}>{st}</span>)}
       </div>
-      <div className="card" style={{ borderColor: `${toneC}66` }}>
-        <div className="a" style={{ color: toneC }}>{m.caption.a}</div>
-        <div className="b">{m.caption.b}</div>
-      </div>
+      {!offer && (
+        <div className="card" style={{ borderColor: `${toneC}66` }}>
+          <div className="a" style={{ color: toneC }}>{m.caption.a}</div>
+          <div className="b">{m.caption.b}</div>
+        </div>
+      )}
     </>
   );
 }

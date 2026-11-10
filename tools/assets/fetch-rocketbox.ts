@@ -12,8 +12,10 @@ const RAW = 'https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/mas
 const API = 'https://api.github.com/repos/microsoft/Microsoft-Rocketbox/contents/Assets';
 
 /** who appears where (Character.tsx). `sex` picks the clip set: Rocketbox clips are authored per body type. */
-export const PEOPLE: Array<{ id: string; group: 'Adults' | 'Professions'; sex: 'm' | 'f'; as: string; tex: number }> = [
-  { id: 'Male_Adult_08', group: 'Adults', sex: 'm', as: 'player', tex: 1024 },        // you: light shirt, jeans (seen from behind)
+export const PEOPLE: Array<{ id: string; group: 'Adults' | 'Professions'; sex: 'm' | 'f'; as: string; tex: number; ghutra?: 'white' }> = [
+  // you: an Emirati in a white kandura, a plain white ghutra and a black agal (seen from behind). Same Rocketbox
+  // person as office_m2; `ghutra` has the import take the red check out of the head-cloth (import_rocketbox.py)
+  { id: 'Male_Adult_21', group: 'Adults', sex: 'm', as: 'player', tex: 1024, ghutra: 'white' },
   // office
   { id: 'Business_Female_01', group: 'Professions', sex: 'f', as: 'office_f1', tex: 512 },
   { id: 'Business_Male_06', group: 'Professions', sex: 'm', as: 'office_m1', tex: 512 },

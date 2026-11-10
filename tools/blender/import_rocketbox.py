@@ -82,6 +82,25 @@ def bleed(im):
         im.update()
 
 
+def whiten(im):
+    """
+    The Emirati ghutra is plain white. The Rocketbox head-cloth is a red-and-white check: take each texel to its
+    brightest channel (red → white; white and the black agal stay as they are), leaving a trace of the weave and the
+    folds' shading.
+    """
+    import numpy as np
+    px = np.empty(im.size[0] * im.size[1] * 4, dtype=np.float32)
+    im.pixels.foreach_get(px)
+    px = px.reshape(-1, 4)
+    rgb = px[:, :3]
+    top = rgb.max(axis=1)
+    luma = rgb @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
+    v = 0.9 * top + 0.1 * luma
+    px[:, :3] = v[:, None] * np.array([1.0, 0.99, 0.97], dtype=np.float32)
+    im.pixels.foreach_set(px.ravel())
+    im.update()
+
+
 def person(p):
     reset()
     bpy.ops.import_scene.fbx(filepath=os.path.join(SRC, 'avatars', p['id'], p['id'] + '.fbx'))
@@ -97,6 +116,10 @@ def person(p):
     mesh = next(o for o in bpy.context.scene.objects if o.type == 'MESH')
     mesh.name = p['as']
     clean_materials(p['tex'])
+    if p.get('ghutra') == 'white':
+        for im in bpy.data.images:
+            if 'keffiyeh_color' in im.filepath.lower() and im.size[0] > 0:
+                whiten(im)
     select([arm, mesh])
     path = os.path.join(OUT, p['as'] + '.glb')
     bpy.ops.export_scene.gltf(

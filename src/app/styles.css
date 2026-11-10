@@ -17,7 +17,10 @@
 html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d12; color: var(--text); font-family: var(--sans); font-size: 16px; -webkit-font-smoothing: antialiased; }
 .canvas-wrap { position: fixed; inset: 0; cursor: grab; }
 .canvas-wrap:active { cursor: grabbing; }
-.stage { position: fixed; left: 0; top: 0; height: 1080px; transform-origin: 0 0; pointer-events: none; z-index: 100; }
+.stage { position: fixed; left: 0; top: 0; height: 1080px; transform-origin: 0 0; pointer-events: none; z-index: 100;
+  /* the comparison strip gives way on a narrower window (a 16:10 laptop is 1663 wide here), so the scene block on its
+     left and the hints on its right keep their room; percentages resolve against the stage in whoever uses it */
+  --strip-w: clamp(660px, calc(100% - 840px), 900px); }
 .stage .interactive, .stage button, .stage input { pointer-events: auto; }
 .fade { position: fixed; inset: 0; background: #000; pointer-events: none; transition: opacity 400ms; z-index: 300; }
 
@@ -35,11 +38,13 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 .glass { background: var(--glass); border: 1px solid var(--line); border-radius: var(--r); backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35); }
 
 /* ───── top-left: scene ───── */
-.scene { position: absolute; left: 32px; top: 28px; max-width: 520px; text-shadow: 0 1px 8px rgba(0,0,0,0.6); }
+/* the title sits on glass: bare text was lost over a sunlit façade */
+.scene { position: absolute; left: 32px; top: 20px; max-width: min(520px, calc((100% - var(--strip-w)) / 2 - 48px)); }
+.scene .hd { width: fit-content; max-width: 100%; padding: 12px 16px 13px; }
 .scene .k { font: 600 13px/1 var(--mono); letter-spacing: 0.14em; color: var(--mute); text-transform: uppercase; }
-.scene .t { font: 600 24px/1.2 var(--sans); margin-top: 6px; }
-.scene .p { font: 400 16px/1.35 var(--sans); color: var(--mute); margin-top: 4px; }
-.scene .jump { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; text-shadow: none; }
+.scene .t { font: 600 24px/1.2 var(--sans); margin-top: 7px; }
+.scene .p { font: 500 13px/1.35 var(--mono); letter-spacing: 0.06em; color: var(--tunnel); margin-top: 5px; }
+.scene .jump { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .chip { display: inline-flex; align-items: center; gap: 7px; font: 500 14px/1 var(--sans); color: var(--mute); background: rgba(12, 15, 21, 0.72); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px 5px 5px; cursor: pointer; }
 .chip kbd { font: 600 12px/1 var(--mono); color: var(--text); background: rgba(255,255,255,0.10); border-radius: 999px; padding: 4px 7px; }
 .chip:hover { color: var(--text); border-color: rgba(255,255,255,0.3); }
@@ -49,7 +54,7 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 .chip.skip kbd { color: var(--tunnel); background: rgba(103, 232, 249, 0.14); }
 
 /* ───── top-centre: comparison strip ───── */
-.strip { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 900px; padding: 10px 14px 12px; }
+.strip { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: var(--strip-w); padding: 10px 14px 12px; }
 .strip .head { display: flex; justify-content: space-between; font: 500 13px/1 var(--mono); color: var(--dim); letter-spacing: 0.06em; margin-bottom: 8px; }
 .lane { display: grid; grid-template-columns: 180px 1fr 300px; align-items: center; gap: 12px; height: 34px; }
 .lane + .lane { margin-top: 6px; }
@@ -69,7 +74,7 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 .chip.handover { background: rgba(251, 191, 36, 0.16); color: var(--check); }
 .chip.frozen, .chip.dropped { background: rgba(248, 113, 113, 0.2); color: var(--threat); }
 
-.visiontag { position: absolute; top: 132px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; padding: 8px 14px; font: 500 15px/1 var(--sans); }
+.visiontag { position: absolute; top: 132px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; padding: 8px 14px; font: 500 15px/1 var(--sans); width: max-content; white-space: nowrap; }
 .visiontag .t { font-weight: 600; color: var(--tunnel); letter-spacing: 0.02em; }
 .visiontag .lg { display: flex; gap: 12px; color: var(--mute); font: 500 13px/1 var(--mono); }
 .visiontag .lg .rings b { font-weight: 700; margin-left: 4px; }
@@ -101,7 +106,7 @@ html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #0b0d
 @keyframes notein { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /* ───── bottom-centre: captions, banners ───── */
-.caption { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); max-width: 780px; padding: 12px 18px; font: 500 19px/1.4 var(--sans); text-align: center; }
+.caption { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); width: max-content; max-width: min(780px, calc(100% - 940px)); padding: 12px 18px; font: 500 19px/1.4 var(--sans); text-align: center; }
 .banner { position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); font: 500 14px/1 var(--sans); color: var(--mute); padding: 8px 12px; white-space: nowrap; }
 .banner b { color: var(--text); font-weight: 600; }
 /* a caption (up to three lines) takes the banner's place while it shows */

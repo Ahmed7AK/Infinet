@@ -394,6 +394,8 @@ const CULL_M = 70;
 const CULL_HALL_M = 36;
 /** … and only those this close to you cast shadows (the overhead light's shadow reaches about 14 m) */
 const SHADOW_HALL_M = 15;
+/** a bystander closer to the camera than this (on the ground plan) is not drawn */
+const NEAR_CAM_M = 1.7;
 /** the camera's view volume, refreshed once a frame, and a person's bounding sphere (skinned bounds are the bind pose) */
 const frustum = new THREE.Frustum(), viewProj = new THREE.Matrix4(), body = new THREE.Sphere(new THREE.Vector3(), 1.3);
 let frustumAt = -1;
@@ -486,7 +488,9 @@ function Person({ n, id }: { n: Npc; id: string }) {
     // cull far away people (and skip their animation)
     const cam = state.camera.position;
     const hall = pos[0] > 30000;
-    let far = Math.hypot(cam.x - pos[0], cam.z + pos[1]) > (hall ? CULL_HALL_M : CULL_M);
+    const camD = Math.hypot(cam.x - pos[0], cam.z + pos[1]);
+    // … and anyone the camera is all but standing in: a head filling a corner of the frame reads as a glitch
+    let far = camD > (hall ? CULL_HALL_M : CULL_M) || (camD < NEAR_CAM_M && cam.y < 2.6);
     if (hall && !far) {
       // skinned people skip frustum culling (their bounds are the bind pose), so in the crowded hall cull them
       // here against the view (a sphere round the body), and only people near you cast the overhead shadows

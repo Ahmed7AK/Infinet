@@ -2,12 +2,13 @@
  * Renderer, light and camera (plan §11, D2, D3, §7.3).
  * - Poly Haven HDRI per scenario as background + image-based light; the sun is found in the HDRI and the
  *   shadow-casting directional light is aimed at it, so shadows agree with the sky.
- * - Post: N8AO · Bloom (threshold 1, so only emissive network objects glow) · AgX tone mapping ·
- *   Network Vision grade (desaturate ~85 %, −1 EV, cool navy, vignette) · SMAA.
+ * - Post: N8AO · Network Vision grade (desaturate ~85 %, −1 EV, cool navy) · Bloom (threshold 1, so only emissive
+ *   network objects glow) · AgX tone mapping · a little saturation and contrast back (AgX alone is pale on a screen
+ *   in a bright hall) · vignette · SMAA.
  * - Camera: third person, over the shoulder; drag to look; pulls back in Network Vision.
  */
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Bloom, BrightnessContrast, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing';
+import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, N8AO, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { BlendFunction, Effect, ToneMappingMode } from 'postprocessing';
 import { Suspense, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
@@ -29,7 +30,7 @@ const SKY: Record<Playable, Sky> = {
   // sun: multiplier on the sun energy measured in the HDRI (the dusk sky has almost none, so it gets a floor)
   'building-exit': { hdr: '/hdri/midday.hdr', sunAzDeg: 200, sun: 1.0, env: 1.0, fog: 0.00045, bg: 1.0 },
   'cafe-twin': { hdr: '/hdri/midday.hdr', sunAzDeg: 150, sun: 1.0, env: 1.0, fog: 0.0005, bg: 1.0 },
-  'desert-sat': { hdr: '/hdri/golden.hdr', sunAzDeg: 252, sun: 1.0, env: 0.9, fog: 0.00042, bg: 1.0 },
+  'desert-sat': { hdr: '/hdri/golden.hdr', sunAzDeg: 252, sun: 1.2, env: 1.0, fog: 0.00042, bg: 1.0 },
   // indoors: the roof keeps the sun out; the hall's own lights (scene/Hall.tsx) and a dimmed sky light it
   'venue-hall': { hdr: '/hdri/midday.hdr', sunAzDeg: 200, sun: 0.6, env: 0.55, fog: 0.0012, bg: 0.6, indoor: true },
 };
@@ -244,7 +245,9 @@ function Post() {
       <Grade />
       <Bloom luminanceThreshold={1.0} luminanceSmoothing={0.2} intensity={0.85} mipmapBlur />
       <ToneMapping mode={ToneMappingMode.AGX} />
-      <BrightnessContrast brightness={0} contrast={0.04} />
+      {/* AgX is true to light but flat and pale on a screen in a bright hall: a little colour and contrast back */}
+      <HueSaturation saturation={0.12} />
+      <BrightnessContrast brightness={0} contrast={0.09} />
       <Vignette ref={vig} offset={0.32} darkness={0.32} />
       <SMAA />
     </EffectComposer>
