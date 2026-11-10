@@ -10,3 +10,13 @@ results/cinematic/
 .env*
 # the Mac scanner app (built by tools/scanner-mac/build.sh)
 tools/scanner-mac/build/
+
+# Infinet Survey (Android): build output and the signing key stay local
+tools/survey-android/build/
+tools/survey-android/.keystore/
+# venue replica inputs: the organisers' plans are confidential, never push them to the public repo
+venue-private/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+results/shots-styleguide/

@@ -6,7 +6,7 @@
  */
 import { create } from 'zustand';
 import {
-  createSim, LAYOUT, SCENARIOS, type LabState, type ScenarioId, type Sim, type SimEvent, type SimSnapshot, type Vec2,
+  mobileWord, createSim, hasVenue, LAYOUT, SCENARIOS, type LabState, type ScenarioId, type Sim, type SimEvent, type SimSnapshot, type Vec2,
 } from '../engine/index';
 import { segmentsCross } from '../engine/world/layout';
 import { audio } from './audio/audio';
@@ -24,17 +24,22 @@ export const NOTES_APP = 7;
 export const CREDITS_APP = 8;
 
 /** Demo seed per scenario: chosen so each policy shows *typical* behaviour, not its luckiest/unluckiest run (see PROGRESS.md). */
-export const DEMO_SEED: Record<Playable, number> = { 'building-exit': 26, 'cafe-twin': 21, 'desert-sat': 16 };
+export const DEMO_SEED: Record<Playable, number> = { 'building-exit': 26, 'cafe-twin': 21, 'desert-sat': 16, 'venue-hall': 5 };
 
-export const SCENE_ORDER: Playable[] = ['building-exit', 'cafe-twin', 'desert-sat'];
-export const SCENE_NUM: Record<Playable, string> = { 'building-exit': '01', 'cafe-twin': '02', 'desert-sat': '03' };
+/** the venue hall is scene 4 only where the private venue file is present (src/app/venueLoad.ts) */
+export const SCENE_ORDER: Playable[] = ['building-exit', 'cafe-twin', 'desert-sat', ...(hasVenue() ? ['venue-hall' as const] : [])];
+export const SCENE_NUM: Record<Playable, string> = { 'building-exit': '01', 'cafe-twin': '02', 'desert-sat': '03', 'venue-hall': '04' };
 
 /** Tour: each moment, and the sim time at which the tour moves on (total ≈ 2:05 plus slow-mo). */
-const TOUR: Array<{ sc: Playable; until: number }> = [
+const TOUR_PUBLIC: Array<{ sc: Playable; until: number }> = [
   { sc: 'building-exit', until: 34 },
   { sc: 'cafe-twin', until: 40 },
   { sc: 'desert-sat', until: 97 },
 ];
+/** the booth build (venue file present) ends the tour in our hall, where the tour signs in to the venue Wi-Fi itself */
+const TOUR_HALL_SIGNIN_S = 7;
+let TOUR = TOUR_PUBLIC;
+const tourStops = () => (TOUR = hasVenue() ? [...TOUR_PUBLIC, { sc: 'venue-hall' as Playable, until: 30 }] : TOUR_PUBLIC);
 const IDLE_TO_ATTRACT_S = 45;
 
 /** each scene's key moment for "skip to the moment" (demo seeds; sim seconds just before it happens) */
@@ -42,6 +47,7 @@ export const MOMENT: Record<Playable, { t: number; label: string }> = {
   'building-exit': { t: 14, label: 'the Wi-Fi edge' },
   'cafe-twin': { t: 19.5, label: 'the fake hotspot' },
   'desert-sat': { t: 76, label: 'the satellite drop' },
+  'venue-hall': { t: 2, label: 'the venue Wi-Fi check' },
 };
 
 export interface UiState {
@@ -122,6 +128,7 @@ class Driver {
   load(sc: Playable, keepMode = true, labOverride: Partial<LabState> = {}) {
     const keep: Partial<LabState> = { ...this.lab, ...labOverride };
     delete keep.baseline;
+    delete keep.signedIn;   // every visit starts signed out, so the sign-in moment can be shown again
     this.sim = createSim(sc, DEMO_SEED[sc], { prewarm: true, lab: keep });
     this.cursor = 0;
     this.snap = this.sim.snapshot();
@@ -189,6 +196,20 @@ class Driver {
     setTimeout(back, 200);
   }
 
+  /** a network Infinet found that shows a sign-in page and isn't signed in yet (the lead check, not each AP) */
+  signInOffer(s = this.snap): { net: string; ssid: string } | null {
+    const signed = s.lab.signedIn ?? [];
+    const tv = Object.values(s.infinet.trust).find((t) => t.handshake === 'portal' && !t.follows && !signed.includes(t.net));
+    return tv ? { net: tv.net, ssid: tv.ssid } : null;
+  }
+
+  /** the user signs in on that page (the phone's Sign in button, or L): Infinet checks the network again */
+  signIn(net = this.signInOffer()?.net) {
+    if (!net) return;
+    this.touchPhone();
+    this.setLab({ signedIn: [...(this.snap.lab.signedIn ?? []), net] });
+  }
+
   setLab(l: Partial<LabState>) {
     Object.assign(this.lab, l);
     this.sim.setLab(l);
@@ -204,12 +225,12 @@ class Driver {
 
   startTour() {
     this.tourIdx = 0;
-    this.travel(TOUR[0].sc, 'tour');
+    this.travel(tourStops()[0].sc, 'tour');
   }
 
   startAttract() {
     this.tourIdx = 0;
-    this.travel(TOUR[0].sc, 'attract');
+    this.travel(tourStops()[0].sc, 'attract');
   }
 
   /** any real input: leaves attract mode, resets the idle timer */
@@ -261,6 +282,11 @@ class Driver {
     this.flushNotes();
     audio.update(this.snap, ui.holdB ? this.snap.lab.baseline : 'infinet', dt);
 
+    // the tour signs in to a network that shows a sign-in page for the visitor (the hall), so the move onto Wi-Fi is seen
+    if ((ui.mode === 'tour' || ui.mode === 'attract') && this.sim.t >= TOUR_HALL_SIGNIN_S) {
+      const offer = this.signInOffer();
+      if (offer) this.setLab({ signedIn: [...(this.snap.lab.signedIn ?? []), offer.net] });
+    }
     // tour progression
     if ((ui.mode === 'tour' || ui.mode === 'attract') && this.sim.t >= TOUR[this.tourIdx].until) {
       this.tourIdx++;
@@ -369,10 +395,11 @@ class Driver {
       this.pendingNotes.push({ id: ++this.noteId, sev, title, detail, t: e.t, born: 0 });
     };
     switch (e.type) {
-      case 'predict.edge': add('heads', `Wi-Fi edge in ${Math.max(1, Math.round(e.ttlS))} s · checking 5G`, `Seen on the coverage map · ${e.label}`, 'edge'); break;
+      case 'predict.edge': add('heads', `Wi-Fi edge in ${Math.max(1, Math.round(e.ttlS))} s · checking ${mobileWord()}`, `Seen on the coverage map · ${e.label}`, 'edge'); break;
       case 'switch.done': if (e.policy === 'infinet') add('info', `Switched to ${e.toLabel} · ${Math.round(e.frozenMs)} ms frozen`, 'Checked before use · make-before-break'); break;
       case 'trust.blocked': add('threat', `Blocked '${e.ssid}'`, e.handshake === 'authfail' ? 'Its check packets failed authentication' : `${e.flags.length} red flags · nothing was sent to it`); break;
-      case 'trust.tunnel': add('info', `${e.ssid}: tunnel only`, 'New to us · only our encrypted tunnel, as a backup'); break;
+      case 'trust.tunnel': add('info', `${e.ssid}: tunnel only`, e.flags.length ? `A red flag · only our encrypted tunnel, as a backup to ${mobileWord()}` : `New to us · only our encrypted tunnel · Wi-Fi first, ${mobileWord()} stays ready`); break;
+      case 'portal.signin': add('info', `Signed in to ${e.label}`, 'Checking it again · then the call moves off mobile data'); break;
       case 'trust.unreachable': add('heads', `${e.ssid} isn't answering yet`, 'Not counted as an attack · we try again shortly'); break;
       case 'anchor.lost': add('threat', 'Anchor server not answering', 'Fail closed: nothing leaves the tunnel · messages held'); break;
       case 'anchor.back': add('info', 'Anchor server back', 'Tunnel up again · held messages sent'); break;
@@ -386,7 +413,7 @@ class Driver {
         else add('threat', 'A fake Site-Net is on the air', 'Open, new device, from a vehicle outside the fence');
         break;
       case 'attack.off': add('info', e.attack === 'beacon-flood' ? 'Beacon flood stopped' : e.attack === 'uplink-flood' ? 'Uplink flood stopped' : 'Fake Site-Net gone', 'Simulation: the attack was switched off in Lab'); break;
-      case 'path.congested': add('heads', `${e.label}: strong signal, ${e.lossPct} % lost · moved to 5G`, `Its own probes saw it (${e.rttMs < 1e5 ? `${e.rttMs} ms round trip` : 'no answers'}); bars alone would have said stay`); break;
+      case 'path.congested': add('heads', `${e.label}: strong signal, ${e.lossPct} % lost · moved to ${mobileWord()}`, `Its own probes saw it (${e.rttMs < 1e5 ? `${e.rttMs} ms round trip` : 'no answers'}); bars alone would have said stay`); break;
       default: break;
     }
   }

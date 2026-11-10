@@ -26,6 +26,7 @@ export const ui = {
 
 export type { Tier } from '../engine/types';
 import type { Tier } from '../engine/types';
+import { mobileWord } from '../engine/policies/agent';
 /** verdict badges (Security spec §2): icon + word + colour, never colour alone */
 export const badge: Record<Tier, { icon: string; word: string; color: string }> = {
   trusted: { icon: '✓', word: 'Trusted', color: tech.ok },
@@ -48,15 +49,25 @@ export const fmtMs = (x: number | undefined) => (x === undefined || !Number.isFi
 export const fmtS = (x: number | undefined, dp = 1) => (x === undefined || !Number.isFinite(x) ? '—' : `${x.toFixed(dp)} s`);
 export const fmtPct = (x: number | undefined, dp = 1) => (x === undefined || !Number.isFinite(x) ? '—' : `${x.toFixed(dp)} %`);
 export const minus = (s: string) => s.replace(/-/g, '−');
+/** Wi-Fi generation from Android's reported standard (WifiAnnotations: 4 = 802.11n, 5 = ac, 6 = ax, 7 = ad, 8 = be) */
+export const wifiGen = (std?: number) => (std === undefined ? '' : ({ 1: 'Wi-Fi 1–3', 4: 'Wi-Fi 4', 5: 'Wi-Fi 5', 6: 'Wi-Fi 6', 7: '802.11ad', 8: 'Wi-Fi 7' } as Record<number, string>)[std] ?? '');
+/** what an anonymous network is, from its address alone (never its name) */
+export const ANON_KIND: Record<string, string> = { hotspot: 'Phone hotspot', device: 'Fixed device', 'venue-other': 'Venue access point' };
+/** one line of facts about a network (band, channel, width, security, generation); empty parts dropped */
+export const netFacts = (e: { band?: string; channel?: number; bwMHz?: number; security?: string; std?: number }, sec: Record<string, string>) =>
+  [e.band ? `${e.band} GHz ch ${e.channel ?? '—'}${e.bwMHz && e.bwMHz > 20 ? ` · ${e.bwMHz} MHz` : ''}` : '', e.security ? sec[e.security] ?? e.security : '', wifiGen(e.std)].filter(Boolean).join(' · ');
 
 /** friendly names for network ids (never real operator or venue names) */
 export const NET_NAME: Record<string, string> = {
   'office-corp': 'Office-Corp', 'cafe-guest': 'Cafe_Guest', twin: 'Cafe_Guest (copy)', 'site-net': 'Site-Net', 'site-twin': 'Site-Net (copy)',
-  'cell-a': 'Cellular A · 5G', 'cell-b': 'Cellular B · 5G',
+  'cell-a': 'Cellular A · 5G', 'cell-b': 'Cellular B · 5G', 'venue-free': 'Venue-Free-WiFi',
 };
+// the mobile word follows the scene (4G in the hall, where we measured LTE): read it when drawing, never at import
+Object.defineProperty(NET_NAME, 'cell-a', { get: () => `Cellular A · ${mobileWord()}`, enumerable: true });
+Object.defineProperty(NET_NAME, 'cell-b', { get: () => `Cellular B · ${mobileWord()}`, enumerable: true });
 export const pathName = (p?: string | null) => {
   if (!p) return '—';
   const [k, n] = p.split(':');
-  if (k === 'cell') return n === 'cell-b' ? '5G (Cellular B)' : '5G (Cellular A)';
-  return ({ 'office-corp': 'Office Wi-Fi', 'cafe-guest': 'Café Wi-Fi', twin: 'Café Wi-Fi (copy)', 'site-net': 'Site Wi-Fi', 'site-twin': 'Site Wi-Fi (copy)', flood: 'Fake beacon' } as Record<string, string>)[n] ?? n;
+  if (k === 'cell') return `${mobileWord()} (Cellular ${n === 'cell-b' ? 'B' : 'A'})`;
+  return ({ 'office-corp': 'Office Wi-Fi', 'cafe-guest': 'Café Wi-Fi', twin: 'Café Wi-Fi (copy)', 'site-net': 'Site Wi-Fi', 'site-twin': 'Site Wi-Fi (copy)', flood: 'Fake beacon', 'venue-free': 'Venue Wi-Fi' } as Record<string, string>)[n] ?? n;
 };

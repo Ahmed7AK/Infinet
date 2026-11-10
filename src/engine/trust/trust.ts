@@ -3,13 +3,15 @@
  *   Appears → Screen (passive red flags, nothing sent) → Quarantine (probe identity + canaries, the call stays
  *   where it is) → Verdict → Roam (the real session moves, no new handshake).
  * Verdicts only route: every byte of user traffic stays in the encrypted tunnel on every network, Trusted
- * included. Trusted = primary path for the tunnel · Tunnel only = backup path · Unreachable / Blocked = never.
+ * included. Trusted = may carry the tunnel · Tunnel only = may carry the tunnel, ahead of 5G only without a red flag
+ * (Wi-Fi first) · Unreachable / Blocked = never.
  * Red flags never decide alone: any one caps a network at Tunnel only; two high, or one high and one medium,
  * give Blocked. Equality and red flags use the raw SSID bytes, never a display string (spec §6, I4).
  */
 import { v } from '../params';
 import type { CanaryState, Flag, HandshakeResult, ScanEntry, Security, Tier, TrustView, Vec2 } from '../types';
 import { LAYOUT, type Transmitter } from '../world/layout';
+import { mobileWord } from '../policies/agent';
 import type { MapSet } from '../maps/rfmaps';
 
 export const SEC_RANK: Record<Security, number> = {
@@ -181,7 +183,7 @@ export function decideTier(a: { known: boolean; flags: Flag[]; handshake: Handsh
 export const MAY_CARRY: Record<Tier, string> = {
   checking: 'Nothing yet',
   trusted: 'Primary path for our tunnel',
-  tunnel: 'Only our tunnel, as a backup path',
+  tunnel: 'Only our encrypted tunnel',
   unreachable: 'Nothing; we retry shortly',
   blocked: 'Nothing',
   unchecked: 'Nothing',
@@ -201,7 +203,7 @@ function flagPhrase(f: Flag, e?: { security?: Security }): string {
 }
 
 /** What the screen says (spec §2 table, "What the screen says"). */
-export function verdictText(tv: TrustView, stayingOn = '5G'): { reason: string; mayCarry: string } {
+export function verdictText(tv: TrustView, stayingOn = mobileWord()): { reason: string; mayCarry: string } {
   const name = tv.ssid;
   const mayCarry = MAY_CARRY[tv.tier];
   switch (tv.tier) {
@@ -214,8 +216,8 @@ export function verdictText(tv: TrustView, stayingOn = '5G'): { reason: string; 
       return { reason: `Blocked ${name}: ${listJoin([...lead, ...parts])}.`, mayCarry };
     }
     case 'tunnel': {
-      if (tv.flags.length) return { reason: `${friendly(name)}: ${listJoin(tv.flags.map((f) => flagPhrase(f, tv)))}. Only our encrypted tunnel goes through it, as a backup.`, mayCarry };
-      return { reason: `${friendly(name)} is new to us. Only our encrypted tunnel goes through it.`, mayCarry };
+      if (tv.flags.length) return { reason: `${friendly(name)}: ${listJoin(tv.flags.map((f) => flagPhrase(f, tv)))}. Only our encrypted tunnel goes through it, and only as a backup to ${mobileWord()}.`, mayCarry };
+      return { reason: `${friendly(name)} is new to us. Only our encrypted tunnel goes through it; Wi-Fi first, ${mobileWord()} stays ready.`, mayCarry };
     }
     case 'trusted':
       return { reason: `${friendly(name)}, as expected. Handshake passed.`, mayCarry };

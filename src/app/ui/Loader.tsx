@@ -6,7 +6,7 @@
  */
 import { useProgress } from '@react-three/drei';
 import { useEffect, useRef, useState } from 'react';
-import { driver } from '../driver';
+import { driver, SCENE_ORDER } from '../driver';
 
 /** set once the scene inside <Suspense> has mounted (its models have resolved) */
 export const sceneState = { mounted: false };
@@ -54,7 +54,7 @@ export function Loader() {
           <span className="num">{loaded} of {total} assets{errors.length ? ` · ${errors.length} failed` : ''}</span>
         </div>
         <p className="loader-p">The first visit downloads every model, person and texture. Later visits are quicker.</p>
-        <p className="loader-keys"><b>WASD</b> walk · <b>drag</b> look · <b>N</b> Network Vision · <b>1 2 3</b> jump to a scene · <b>M</b> skip to the moment · <b>T</b> tour · <b>↑</b> phone</p>
+        <p className="loader-keys"><b>WASD</b> walk · <b>drag</b> look · <b>N</b> Network Vision · <b>{SCENE_ORDER.map((_, i) => i + 1).join(' ')}</b> jump to a scene · <b>M</b> skip to the moment · <b>T</b> tour · <b>↑</b> phone</p>
       </div>
     </div>
   );

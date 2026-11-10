@@ -46,12 +46,12 @@ export function wallLossDb(a: Vec2, b: Vec2, ws: WallSet, crossed?: Wall[]): num
 }
 
 /** Wi-Fi path gain (dB, negative) excluding EIRP and shadowing. */
-export function wifiPathGainDb(tx: { pos: Vec3; band?: string }, p: Vec2, ws: WallSet, txPos?: Vec3): number {
+export function wifiPathGainDb(tx: { pos: Vec3; band?: string; plExp?: number }, p: Vec2, ws: WallSet, txPos?: Vec3): number {
   const pos = txPos ?? tx.pos;
   const dx = p[0] - pos[0], dy = p[1] - pos[1], dz = UE_PHONE_H - pos[2];
   const d = Math.max(1, Math.sqrt(dx * dx + dy * dy + dz * dz));
   const pl0 = tx.band === '2.4' ? v('wifiPl1m2GHz') : v('wifiPl1m5GHz');
-  const pl = pl0 + 10 * v('wifiPathLossExp') * log10(d) + wallLossDb([pos[0], pos[1]], p, ws);
+  const pl = pl0 + 10 * (tx.plExp ?? v('wifiPathLossExp')) * log10(d) + wallLossDb([pos[0], pos[1]], p, ws);
   return -pl;
 }
 
@@ -126,7 +126,7 @@ export function cellRsrpDet(tx: Transmitter, p: Vec2): CellSample {
   let o2i = 0;
   const b = buildingAt(p);
   if (b) o2i = o2iWallLossDb(b.o2i, fc) + v('o2iInsideDistCoef') * Math.min(25, distToPolyEdge(p, b.poly));
-  const rsrp = v('nrPerRePowerDbm') + v('nrSectorGainDbi') + best - pl - o2i;
+  const rsrp = v('nrPerRePowerDbm') + v('nrSectorGainDbi') + best - pl - o2i + (tx.rsrpOffsetDb ?? 0);
   return { rsrpDbm: rsrp, o2iDb: o2i, sector: bestS, indoor: !!b };
 }
 

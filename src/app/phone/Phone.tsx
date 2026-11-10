@@ -6,10 +6,11 @@
  */
 import { Activity, FlaskConical, Map as MapIcon, Phone as PhoneIcon, ShieldCheck, Waypoints, Wifi, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { PARAMS, VISUAL_NOTES, type SimSnapshot } from '../../engine/index';
+import { mobileWord, PARAMS, VENUE, VISUAL_NOTES, type SimSnapshot } from '../../engine/index';
 import { CREDITS_APP, driver, NOTES_APP, TUNNEL_APP, useUi, type Playable } from '../driver';
 import { TunnelApp } from './TunnelApp';
-import { badge, fmtDb, fmtMs, fmtPct, fmtS, pathName, tech, THRESH, ui, type Tier } from '../tokens';
+import { SignInCard } from '../ui/Hud';
+import { ANON_KIND, badge, fmtDb, fmtMs, fmtPct, fmtS, netFacts, pathName, tech, THRESH, ui, type Tier } from '../tokens';
 
 export const APPS: Array<{ name: string; icon: LucideIcon }> = [
   { name: 'Infinet', icon: Activity }, { name: 'Networks', icon: Wifi }, { name: 'Call', icon: PhoneIcon },
@@ -68,7 +69,7 @@ function Status({ s }: { s: SimSnapshot }) {
     <div className="status">
       <span className="l">
         <span className="num">10:{String((12 + mm) % 60).padStart(2, '0')}<span style={{ color: ui.dim }}>:{String(ss).padStart(2, '0')}</span></span>
-        {onCell ? cell && <span style={{ color: tech.cell, font: '600 12px/1 var(--mono)' }}>5G</span> : wifi && <Wifi size={14} color={ui.mute} />}
+        {onCell ? cell && <span style={{ color: tech.cell, font: '600 12px/1 var(--mono)' }}>{mobileWord()}</span> : wifi && <Wifi size={14} color={ui.mute} />}
       </span>
       <span className="r">
         <span className="shieldpill" style={{ color: c, background: `${c}22` }}>{word}</span>
@@ -147,9 +148,15 @@ function InfinetApp({ s }: { s: SimSnapshot }) {
 }
 
 const SEC: Record<string, string> = { OPEN: 'Open', WEP: 'WEP', 'WPA-TKIP': 'WPA/TKIP', OWE: 'Enhanced Open', 'WPA2-PSK': 'WPA2', 'WPA2/3': 'WPA2/3', 'WPA2-ENT': 'WPA2-Ent', 'WPA3-SAE': 'WPA3', 'WPA3-ENT': 'WPA3-Ent' };
+const KIND_PLURAL: Record<string, string> = { 'venue-other': 'venue access points', hotspot: 'phone hotspots', device: 'fixed devices' };
 function NetworksApp({ s }: { s: SimSnapshot }) {
-  const list = [...s.scan].filter((e) => !e.anon).sort((a, b) => b.rssiDbm - a.rssiDbm).slice(0, 7);
-  const anon = s.scan.filter((e) => e.anon).length;
+  const anonAll = s.scan.filter((e) => e.anon);
+  // measured networks (the hall) say what they are: the strongest few with their facts, the rest counted by kind
+  const told = anonAll.filter((e) => e.kindHint).sort((a, b) => b.rssiDbm - a.rssiDbm).slice(0, 3);
+  const list = [...s.scan].filter((e) => !e.anon).sort((a, b) => b.rssiDbm - a.rssiDbm).slice(0, told.length ? 5 : 7);
+  const others = anonAll.filter((e) => !told.includes(e)), anon = others.length;
+  const byKind = (['venue-other', 'hotspot', 'device'] as const).map((k) => ({ k, n: others.filter((e) => e.net === k).length })).filter((x) => x.n > 0);
+  const rest = anon - byKind.reduce((a, x) => a + x.n, 0);
   const scanner = useUi((u) => u.scanner);
   const note = useUi((u) => u.scannerNote);
   return (
@@ -167,7 +174,16 @@ function NetworksApp({ s }: { s: SimSnapshot }) {
             </div>
           );
         })}
-        {anon > 0 && <div className="net"><div className="l2"><span>+ {anon} other {anon === 1 ? 'network' : 'networks'} nearby · anonymous, never joined</span></div></div>}
+        {told.map((e) => (
+          <div key={e.bssid} className="net anon">
+            <div className="l1"><span>{ANON_KIND[e.kindHint!]}</span><span className="sub">{fmtDb(e.rssiDbm)}</span></div>
+            <div className="l2"><span>{netFacts(e, SEC)}</span></div>
+          </div>
+        ))}
+        {anon > 0 && (
+          <div className="net"><div className="l2"><span>+ {anon} other {anon === 1 ? 'network' : 'networks'} nearby · anonymous, never joined
+            {byKind.length > 0 && <>{': '}{[...byKind.map((x) => `${x.n} ${KIND_PLURAL[x.k]}`), ...(rest > 0 ? [`${rest} other`] : [])].join(', ')}</>}</span></div></div>
+        )}
       </div>
     </>
   );
@@ -273,6 +289,7 @@ function NotesApp() {
       <div className="scroll">
         <p><b>Visual compressions</b></p>
         {VISUAL_NOTES.map((n, i) => <p key={i}>• {n}</p>)}
+        {VENUE && <><p><b>Scene 4 · the hall, as measured</b></p>{VENUE.notes.map((n, i) => <p key={`v${i}`}>• {n}</p>)}</>}
         <p><b>Every assumption ({assumptions.length})</b></p>
         {assumptions.map(([k, p]) => <p key={k}><span className="num" style={{ color: tech.tunnel }}>{k} = {JSON.stringify((p as any).v)}</span><br />{(p as any).src}{(p as any).verify ? ' · TO VERIFY' : ''}</p>)}
       </div>
@@ -313,6 +330,7 @@ export function Phone() {
         ) : (
           <>
             <div className="body">
+              <SignInCard inPhone />
               {app === null && <><h4>Infinet OS</h4><Home sel={sel} /></>}
               {app === 0 && <InfinetApp s={s} />}
               {app === 1 && <NetworksApp s={s} />}

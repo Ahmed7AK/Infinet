@@ -29,10 +29,11 @@ npm run preview      # http://localhost:4173
 
 | Key | Does |
 |---|---|
-| **T** | Guided tour: office → café → desert, then back to free roam |
+| **T** | Guided tour: office → café → desert (→ our hall on the booth build), then back to free roam |
 | **W A S D** (Shift = run) | Walk. Any movement takes over from the tour |
 | **drag** | Look around (the camera follows your walking direction again after a few seconds) |
-| **1 · 2 · 3** (or the chips under the scene title) | Jump to a scene: office exit · café · desert site |
+| **1 · 2 · 3** (or the chips under the scene title) | Jump to a scene: office exit · café · desert site. **4** is our venue hall, only on a build that has `venue-private/` (the booth laptop) |
+| **L** (or the card by the phone) | Sign in, when a Wi-Fi shows a sign-in page. Infinet checks it again, then moves the call onto it |
 | **M** (or the chip) | Skip to the scene's key moment; again to replay it |
 | **N** | Network Vision: the world goes grey and the networks, the tunnel and the packets light up |
 | **Shift+N** | In Vision: Infinet's map → true signal → map error |
@@ -53,15 +54,22 @@ npm run preview      # http://localhost:4173
 
 `tools/scanner-mac/build.sh` builds **Infinet Scanner.app**: it serves the simulation on 127.0.0.1 and feeds it the Wi-Fi around the laptop. Name a phone hotspot `Infinet-Demo-<anything>` and it appears beside the walker, where it was first heard, and is screened for real; a second hotspot with the same name and no password is Blocked. Everyone else's network is an anonymous dot (name dropped, BSSID replaced by a salted hash before it leaves the app). Nothing is stored or uploaded, and the laptop never transmits to any network. Details, security and the message format for other scanners: [tools/scanner-mac/README.md](tools/scanner-mac/README.md). On Linux, `npm run build && npm run scanner` does the same with `nmcli` ([tools/scanner-linux/README.md](tools/scanner-linux/README.md)). Without a scanner, `?live=replay` plays a synthetic example (labelled as such); the hosted site has no live scan.
 
+## The film and the real-world demo
+
+- **[media/infinet-film.mp4](media/infinet-film.mp4)**: the judges' film (about 75 s, no sound). The problem, the idea, the three scenes, the numbers from the batch, and what is built, simulated and next. The booth cut adds our hall and stays on the booth laptop.
+- **[REAL_WORLD_DEMO.md](REAL_WORLD_DEMO.md)**: ways to show it working in the real world, and the morning go / no-go for the live hotspot test.
+
 ## Tools
 
 ```bash
 npm test                                 # engine tests (vitest)
 npm run typecheck && npm run lint
-npm run batch -- --scenario all --runs 300 --seed 1 --property 5000 --out results/2026-11-05
+npm run batch -- --scenario all --runs 300 --seed 1 --property 5000 --out results/2026-11-10
 npm run shots                            # 17 verification screenshots → results/shots (needs npm run dev)
 npm run qa                               # booth checks against the preview build (needs npm run preview)
 npm run cinematic                        # deterministic backup video → results/cinematic (needs npm run dev + ffmpeg)
+npm run film -- --cut public             # the judges' film → media/infinet-film.mp4 (needs npm run dev + ffmpeg)
+npm run film -- --cut booth              # the same with our hall → venue-private/media/ (booth laptop only, never pushed)
 ```
 
 - Batch results are in `results/<date>/SUMMARY.md`: mean, median, p95 and bootstrap 95 % CI per scenario and policy, plus charts and the property test.

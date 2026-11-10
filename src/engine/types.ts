@@ -38,8 +38,9 @@ export type HandshakeResult = 'pass' | 'authfail' | 'timeout' | 'pending' | 'por
 /** the café attack variants (spec §4): open copy (default), perfect copy (password and BSSID copied), downgrade */
 export type AttackVariant = 'copy' | 'perfect' | 'downgrade';
 export type LinkType = 'wifi' | '5g' | 'sat';
-export type ZoneId = 'office' | 'street' | 'desert';
-export type ScenarioId = 'building-exit' | 'cafe-twin' | 'desert-sat' | 'free';
+export type ZoneId = 'office' | 'street' | 'desert' | 'hall';
+/** 'venue-hall' exists only where the private venue file is present (src/engine/world/venue.ts) */
+export type ScenarioId = 'building-exit' | 'cafe-twin' | 'desert-sat' | 'venue-hall' | 'free';
 
 export interface PlayerInput {
   pos: Vec2;
@@ -111,6 +112,8 @@ export interface TrustView {
   stage: 'screen' | 'quarantine' | 'verdict';
   reason: string;
   mayCarry: string;
+  /** another access point of the same surveyed network: shares this BSSID's verdict instead of a check of its own */
+  follows?: string;
   steps: Array<{ text: string; ok: boolean | null; t: number }>;
 }
 
@@ -159,6 +162,13 @@ export interface ScanEntry {
   anon?: boolean;
   /** live entries: where the walker was when it was first detected (engine frame, m) */
   pos?: Vec2;
+  /** anonymous entries whose name is known only as an opaque id (a venue AP's other networks): the flood alert
+   *  counts distinct names, so several access points of one network count once */
+  nameKey?: string;
+  /** what an anonymous entry is, when the model knows (the venue hall): a phone hotspot or a fixed device */
+  kindHint?: 'hotspot' | 'device';
+  /** Wi-Fi generation (Android code: 4 = 802.11n, 5 = ac, 6 = ax, 8 = be) and channel width (MHz), when known */
+  std?: number; bwMHz?: number;
 }
 
 export interface InfinetView {
@@ -233,6 +243,8 @@ export type SimEvent =
   | { t: number; type: 'nocoverage'; aheadS: number }
   /** Lab attacks switched on/off: beacon flood (DDoS on network choice), uplink flood (DDoS on a Wi-Fi's internet), fake Site-Net */
   | { t: number; type: 'attack.on' | 'attack.off'; attack: LabAttack }
+  /** the user completed a network's sign-in page (only the sandboxed page was reachable until then) */
+  | { t: number; type: 'portal.signin'; net: string; label: string }
   /** Infinet left a Wi-Fi whose signal is strong but whose packets are lost or late (its own probes saw it) */
   | { t: number; type: 'path.congested'; link: string; label: string; lossPct: number; rttMs: number };
 
@@ -260,6 +272,8 @@ export interface LabState {
   uplinkFlood: boolean;
   /** desert: a fake "Site-Net" (open, new BSSID) from a vehicle outside the fence */
   siteTwin: boolean;
+  /** networks whose sign-in page the user has completed (the phone's Sign in button): no sign-in page from now on */
+  signedIn: string[];
 }
 
 export const DEFAULT_LAB: LabState = {
@@ -278,4 +292,5 @@ export const DEFAULT_LAB: LabState = {
   beaconFlood: false,
   uplinkFlood: false,
   siteTwin: false,
+  signedIn: [],
 };

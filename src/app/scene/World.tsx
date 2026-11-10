@@ -22,7 +22,7 @@ import { camOccluders, NET_LAYER, visionK } from './vision';
 import { SceneMounted } from '../ui/Loader';
 
 // ───────────── sky and sun per scenario (midday in the city, low golden sun at the desert site) ─────────────
-interface Sky { hdr: string; sunAzDeg: number; sun: number; env: number; fog: number; bg: number }
+interface Sky { hdr: string; sunAzDeg: number; sun: number; env: number; fog: number; bg: number; /** under a roof: no sun or sun shadows, except in Vision, where the roof lifts away */ indoor?: boolean }
 /** overall exposure: scales sun, sky light and background together */
 const EXPOSURE = 0.75;
 const SKY: Record<Playable, Sky> = {
@@ -30,6 +30,8 @@ const SKY: Record<Playable, Sky> = {
   'building-exit': { hdr: '/hdri/midday.hdr', sunAzDeg: 200, sun: 1.0, env: 1.0, fog: 0.00045, bg: 1.0 },
   'cafe-twin': { hdr: '/hdri/midday.hdr', sunAzDeg: 150, sun: 1.0, env: 1.0, fog: 0.0005, bg: 1.0 },
   'desert-sat': { hdr: '/hdri/golden.hdr', sunAzDeg: 252, sun: 1.0, env: 0.9, fog: 0.00042, bg: 1.0 },
+  // indoors: the roof keeps the sun out; the hall's own lights (scene/Hall.tsx) and a dimmed sky light it
+  'venue-hall': { hdr: '/hdri/midday.hdr', sunAzDeg: 200, sun: 0.6, env: 0.55, fog: 0.0012, bg: 0.6, indoor: true },
 };
 
 
@@ -121,12 +123,15 @@ function SkyAndSun() {
   useFrame((_, dt) => {
     const want = useUi.getState().vision ? 1 : 0;
     visionK.v += (want - visionK.v) * (1 - Math.exp(-dt * 7)); // ≈ 600 ms
+    // recording hook (tools/record/film.ts): the film sets the blend itself, frame by frame, so the fade is the same on every run
+    const ov = (window as { __infinetVisionK?: number }).__infinetVisionK;
+    if (ov !== undefined) visionK.v = ov;
     const c = cur.current, L = sun.current;
     if (!c || !L) return;
     const dim = 1 - 0.6 * visionK.v; // about −1 EV in Network Vision
     scene.environmentIntensity = c.sky.env * EXPOSURE * dim;
     scene.backgroundIntensity = c.sky.bg * EXPOSURE * (1 - 0.7 * visionK.v);
-    L.intensity = Math.max(1.2, c.l.sunE * c.sky.sun) * EXPOSURE * dim;
+    L.intensity = Math.max(1.2, c.l.sunE * c.sky.sun) * EXPOSURE * dim * (c.sky.indoor ? visionK.v : 1);
     const [px, py] = driver.snap.player.pos;
     const tgt = new THREE.Vector3(px, 0, -py);
     L.target.position.copy(tgt);
@@ -136,7 +141,7 @@ function SkyAndSun() {
   return (
     <>
       <directionalLight
-        ref={sun} castShadow intensity={2.5}
+        ref={sun} castShadow={!SKY[sc].indoor} intensity={2.5}
         shadow-mapSize={[4096, 4096]} shadow-bias={-0.0002} shadow-normalBias={0.03} shadow-radius={2.5}
         shadow-camera-left={-45} shadow-camera-right={45} shadow-camera-top={45} shadow-camera-bottom={-45}
         shadow-camera-near={1} shadow-camera-far={420}
@@ -254,7 +259,7 @@ const SOLID = [
     return p.map((a, i) => ({ a, b: p[(i + 1) % p.length], h: b.height ?? 10 }));
   }),
 ];
-const ROOFED = LAYOUT.buildings.filter((b) => b.kind === 'cutaway');
+const ROOFED = LAYOUT.buildings.filter((b) => b.kind === 'cutaway' || b.kind === 'hall');
 /** fraction along p→q where it first hits a solid taller than height y (1 = clear) */
 function firstHit(p: Vec2, q: Vec2, y: number): number {
   let best = 1;

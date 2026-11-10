@@ -20,7 +20,8 @@ mkdirSync(join(outDir, 'charts'), { recursive: true });
 
 type Row = PolicyResult & { run: number; seed: number; speed: number; staleness: number; offsetDb: number; mode: string };
 
-const METRICS: Array<{ k: keyof PolicyResult; label: string; unit: string; dp: number }> = [
+// `verdicts`: only policies that give verdicts (Infinet and its ablations) have this metric; the baselines show n/a
+const METRICS: Array<{ k: keyof PolicyResult; label: string; unit: string; dp: number; verdicts?: boolean }> = [
   { k: 'frozenS', label: 'Seconds frozen', unit: 's', dp: 2 },
   { k: 'longestFrozenS', label: 'Longest freeze', unit: 's', dp: 2 },
   { k: 'voiceLostPct', label: 'Voice lost or late', unit: '%', dp: 2 },
@@ -29,11 +30,12 @@ const METRICS: Array<{ k: keyof PolicyResult; label: string; unit: string; dp: n
   { k: 'fakeAdmissionFrames', label: 'Voice frames sent over a fake network', unit: '', dp: 1 },
   { k: 'invariantViolations', label: 'Frames on unchecked/Blocked networks', unit: '', dp: 1 },
   { k: 'fakePlainFrames', label: 'Frames a fake network could read (not tunnelled)', unit: '', dp: 1 },
-  { k: 'fakeAccepted', label: 'Fake networks accepted (Trusted or Tunnel only; ciphertext only)', unit: '', dp: 2 },
+  { k: 'fakeAccepted', label: 'Fake networks accepted (Trusted or Tunnel only; ciphertext only)', unit: '', dp: 2, verdicts: true },
   { k: 'wronglyBlocked', label: 'Real networks blocked', unit: '', dp: 2 },
-  { k: 'realUnreachable', label: 'Real networks unreachable (reported apart)', unit: '', dp: 2 },
+  { k: 'realUnreachable', label: 'Real networks unreachable (reported apart)', unit: '', dp: 2, verdicts: true },
   { k: 'dupExtraPct', label: 'Extra data from duplication', unit: '%', dp: 2 },
   { k: 'falseDead', label: 'False "link dead" verdicts', unit: '', dp: 2 },
+  { k: 'switches', label: 'Network switches per call', unit: '', dp: 2 },
 ];
 
 function runScenario(sc: Exclude<ScenarioId, 'free'>): Row[] {
@@ -85,7 +87,9 @@ for (const sc of scenarios) {
   for (const m of METRICS) {
     const cells: string[] = [];
     for (const p of ALL_POLICIES) {
-      const x = rows.filter((r) => r.policy === p).map((r) => Number(r[m.k] ?? 0));
+      const pr = rows.filter((r) => r.policy === p);
+      if (m.verdicts && pr.every((r) => r[m.k] === undefined)) { cells.push('n/a'); continue; }
+      const x = pr.map((r) => Number(r[m.k] ?? 0));
       const ci = bootstrapCi(x, 7);
       const s = { mean: mean(x), median: quant(x, 0.5), p95: quant(x, 0.95), max: Math.max(...x), ci };
       (summary.scenarios[sc][p] ??= {})[m.k] = s;
