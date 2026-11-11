@@ -6,7 +6,7 @@
 import { useMemo, type JSX } from 'react';
 import * as THREE from 'three';
 import { LAYOUT, PARK, type Vec2 } from '../../../engine/index';
-import { AMAT, Area, Awning, bandGeo, Block, Box, boxGeo, Cyl, ellipsePoly, Ground, Hedge, Jets, L3, Lamp, Mast, P, Palm, rectPoly, ribbonGeo, rng, smooth, Tree, WaterDrift } from './kit';
+import { AMAT, Area, Awning, bandGeo, Block, Box, boxGeo, ellipsePoly, Ground, Hedge, Jets, L3, Lamp, Mast, P, Palm, rectPoly, ribbonGeo, rng, smooth, Tree, WaterDrift } from './kit';
 
 const ID = 'park' as const;
 const K = PARK;

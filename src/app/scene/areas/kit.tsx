@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef, type JSX, type ReactNode } from 'react';
 import * as THREE from 'three';
 import { AREA_ORIGIN, type AreaId, type Vec2 } from '../../../engine/index';
 import { boxGeo, floorGeo, MAT, useModel, type ModelName } from '../assets';
-import { camOccluders } from '../vision';
+import { camOccluders, visionK } from '../vision';
 
 export const faceCompass = (deg: number) => ((180 - deg) * Math.PI) / 180;
 /** local (x east, y north, h up) → three.js */
@@ -274,6 +274,20 @@ export function Cyl({ at, r, h, z0 = 0, r2, mat, seg = 20, shadow = true }: { at
 export function Ground({ poly, y = 0, mat }: { poly: Array<[number, number]>; y?: number; mat: THREE.Material }) {
   const g = useMemo(() => floorGeo(poly, y), [poly, y]);
   return <mesh geometry={g} material={mat} receiveShadow />;
+}
+/** a cylinder with metre UVs on its side, so the façade textures keep their scale round a curve */
+export function cylGeo(r: number, h: number, seg = 24, r2 = r): THREE.CylinderGeometry {
+  const g = new THREE.CylinderGeometry(r2, r, h, seg);
+  const uv = g.attributes.uv as THREE.BufferAttribute;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 2 * Math.PI * r, uv.getY(i) * h);
+  uv.needsUpdate = true;
+  return g;
+}
+/** hidden in Network Vision: roofs the raised camera would otherwise look down on */
+export function HideInVision({ children }: { children: ReactNode }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => { if (ref.current) ref.current.visible = visionK.v < 0.5; });
+  return <group ref={ref}>{children}</group>;
 }
 export const rectPoly = (x0: number, y0: number, x1: number, y1: number): Array<[number, number]> => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 
