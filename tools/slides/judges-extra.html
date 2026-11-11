@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Infinet extra slides</title>
+<!--
+  Three extra slides for the judges' deck (style guide v1.1): what exists and what we adapted, the QoS/QoE
+  guidelines, and the AI-use declaration. 1920 × 1080 each. Render with `npx tsx tools/slides/render.ts`
+  → results/slides/ (PNG per slide + one PDF). Every number comes from results/2026-11-10/SUMMARY.md or
+  src/engine/params.ts.
+-->
+<style>
+  @font-face { font-family: 'Chakra Petch'; font-weight: 500; src: url('../../node_modules/@fontsource/chakra-petch/files/chakra-petch-latin-500-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Chakra Petch'; font-weight: 600; src: url('../../node_modules/@fontsource/chakra-petch/files/chakra-petch-latin-600-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Chakra Petch'; font-weight: 700; src: url('../../node_modules/@fontsource/chakra-petch/files/chakra-petch-latin-700-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'IBM Plex Sans'; font-weight: 400; src: url('../../node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'IBM Plex Sans'; font-weight: 500; src: url('../../node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-500-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'IBM Plex Sans'; font-weight: 600; src: url('../../node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-600-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'IBM Plex Mono'; font-weight: 400; src: url('../../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'IBM Plex Mono'; font-weight: 500; src: url('../../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'IBM Plex Mono'; font-weight: 600; src: url('../../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-600-normal.woff2') format('woff2'); }
+
+  :root {
+    --night: #0A0B14; --night2: #151827; --night3: #23273A;
+    --violet: #730FFF; --cyan: #00EBFF; --orange: #FF5A3C;
+    --steel: #5C6272; --quiet: #9AA0B4; --soft: #C9CCD6; --white: #FFFFFF;
+    --display: 'Chakra Petch', Arial, system-ui, sans-serif;
+    --text: 'IBM Plex Sans', Arial, system-ui, sans-serif;
+    --data: 'IBM Plex Mono', Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--night); }
+  body { width: 1920px; color: var(--white); font-family: var(--text); -webkit-font-smoothing: antialiased; }
+  @page { size: 1920px 1080px; margin: 0; }
+
+  .slide { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--night);
+    padding: 0 80px; display: flex; flex-direction: column; page-break-after: always; break-after: page; }
+
+  /* header and footer, as on the style guide's pages */
+  .top { height: 88px; flex: none; display: flex; align-items: center; gap: 20px; border-bottom: 1px solid var(--night3); }
+  .top img { height: 22px; display: block; }
+  .top .bar { width: 1px; height: 24px; background: var(--night3); }
+  .label { font-family: var(--display); font-weight: 600; font-size: 15px; letter-spacing: 0.16em; text-transform: uppercase; }
+  .top .right { margin-left: auto; color: var(--quiet); }
+  .foot { height: 64px; flex: none; margin-top: auto; display: flex; align-items: center; border-top: 1px solid var(--night3);
+    font-family: var(--data); font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--quiet); }
+  .foot .right { margin-left: auto; }
+
+  .eyebrow { margin-top: 44px; color: var(--quiet); }
+  h1 { margin-top: 14px; font-family: var(--display); font-weight: 700; font-size: 60px; line-height: 1.04; letter-spacing: -0.005em; max-width: 1560px; }
+  .lead { margin-top: 18px; font-size: 24px; line-height: 1.45; color: var(--soft); max-width: 1500px; }
+
+  /* the edge cut: c = short side ÷ 8, 45°; cards cut top-left and bottom-right, chips top-left only */
+  .cut2 { --c: 16px; clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c)); }
+  .cut1 { --c: 8px; clip-path: polygon(var(--c) 0, 100% 0, 100% 100%, 0 100%, 0 var(--c)); }
+
+  .chip { display: inline-flex; align-items: center; justify-content: center; background: var(--violet); color: var(--white);
+    font-family: var(--display); font-weight: 700; font-size: 20px; width: 48px; height: 40px; }
+  .tag { display: inline-flex; align-items: center; gap: 8px; font-family: var(--data); font-size: 13px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--cyan); border: 1.5px dashed var(--cyan); padding: 4px 10px; }
+  .tag::before { content: ''; width: 9px; height: 9px; border: 1.5px solid var(--cyan); }
+
+  /* tables built on a grid with hairline rules */
+  .grid { display: grid; column-gap: 32px; }
+  .grid .h { padding-bottom: 12px; border-bottom: 1px solid var(--steel); color: var(--quiet); display: flex; align-items: center; gap: 14px; }
+  .grid .c { padding: 16px 0; border-bottom: 1px solid var(--night3); font-size: 21px; line-height: 1.35; color: var(--soft); }
+  .name { font-family: var(--display); font-weight: 600; font-size: 23px; color: var(--white); line-height: 1.2; }
+  .sub { display: block; margin-top: 4px; font-family: var(--data); font-size: 15px; color: var(--quiet); letter-spacing: 0.02em; }
+  .num { font-family: var(--data); font-weight: 500; color: var(--white); font-size: 22px; }
+  .num .vs { color: var(--quiet); font-weight: 400; }
+  .unit { font-size: 0.5em; margin-left: 0.25em; }
+
+  /* slide A */
+  #a .tbl { margin-top: 26px; grid-template-columns: 330px 400px 560px 1fr; }
+  #a .tbl .c { padding: 13px 0; }
+  #a .adapt { margin-top: 30px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  #a .card { background: var(--night2); padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 12px; }
+  #a .card .t { display: flex; align-items: center; gap: 14px; font-family: var(--display); font-weight: 700; font-size: 25px; }
+  #a .card p { font-size: 19px; line-height: 1.4; color: var(--soft); }
+  #a .refs { margin-top: 22px; font-size: 16px; color: var(--quiet); line-height: 1.5; }
+  #a .refs b { font-family: var(--display); font-weight: 600; letter-spacing: 0.16em; font-size: 13px; text-transform: uppercase; margin-right: 10px; color: var(--quiet); }
+
+  /* slide B */
+  #b .tbl { margin-top: 30px; grid-template-columns: 48px 330px 720px 1fr; }
+  #b .tbl .c { padding: 14px 0; display: flex; flex-direction: column; justify-content: center; font-size: 20px; }
+  #b .tbl .c.n { justify-content: center; }
+  #b .ev .num { font-size: 26px; }
+  #b .ev .sub { font-family: var(--text); font-size: 15px; letter-spacing: 0; }
+  #b .note { margin-top: 18px; font-size: 16px; line-height: 1.5; color: var(--quiet); max-width: 1600px; }
+
+  /* slide C */
+  #c .row { margin-top: 48px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  #c .card { background: var(--night2); padding: 34px 34px 38px; }
+  #c .card .label { color: var(--quiet); }
+  #c .card h2 { margin-top: 12px; font-family: var(--display); font-weight: 700; font-size: 34px; }
+  #c ul { list-style: none; margin-top: 22px; display: flex; flex-direction: column; gap: 16px; }
+  #c li { position: relative; padding-left: 28px; font-size: 22px; line-height: 1.4; color: var(--soft); }
+  #c li::before { content: ''; position: absolute; left: 0; top: 11px; width: 10px; height: 10px; background: var(--violet); }
+  #c li .num { font-size: 22px; }
+  #c .window { margin-top: 36px; background: var(--night2); }
+  #c .window .bar { --c: 12px; background: var(--violet); padding: 10px 24px; color: var(--white); }
+  #c .window p { padding: 24px 24px 26px; font-size: 24px; color: var(--white); }
+  #c .cipher { position: absolute; right: 80px; top: 124px; width: 560px; height: 200px; font-family: var(--data); font-size: 17px;
+    line-height: 25px; letter-spacing: 0.1em; color: #1F2334; white-space: pre; overflow: hidden; user-select: none; }
+  #c .cipher i { font-style: normal; color: var(--night); background: var(--cyan); }
+  #c .cipher u { text-decoration: none; color: var(--white); background: var(--violet); }
+  #c h1, #c .lead { max-width: 1120px; }
+</style>
+</head>
+<body>
+
+<!-- ───────────── A · what exists, and what we adapted ───────────── -->
+<section class="slide" id="a">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">Related work</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="label eyebrow">What exists · what we adapted</div>
+  <h1>Phones and VPNs already move calls between networks. None checks a network before using it.</h1>
+
+  <div class="grid tbl">
+    <div class="label h">Existing mechanism</div><div class="label h">Does well</div><div class="label h">Misses</div><div class="label h">In our results <span class="tag">Simulated</span></div>
+
+    <div class="c"><span class="name">The phone's own switch</span><span class="sub">Wi-Fi → mobile when Wi-Fi is poor</span></div>
+    <div class="c">Built in, no setup</div>
+    <div class="c">Moves after the call suffers; joins any saved name, even a copy</div>
+    <div class="c"><span class="num">6.56<span class="unit">s</span></span> frozen leaving a building</div>
+
+    <div class="c"><span class="name">Multipath TCP</span><span class="sub">RFC 8684</span></div>
+    <div class="c">Keeps a TCP connection over Wi-Fi and mobile</div>
+    <div class="c">TCP only, not real-time voice; each app must support it</div>
+    <div class="c"><span class="num">1.6<span class="unit">s</span></span> median reconnect, from iPhone measurements</div>
+
+    <div class="c"><span class="name">Roaming VPN tunnel</span><span class="sub">WireGuard, NDSS 2017</span></div>
+    <div class="c">The call survives a new address, sealed</div>
+    <div class="c">Doesn't know when to move, or which networks are safe</div>
+    <div class="c"><span class="num">8.29</span> switches per café call</div>
+
+    <div class="c"><span class="name">Operator steering</span><span class="sub">3GPP ATSSS · TS 23.501</span></div>
+    <div class="c">The operator's core splits traffic over 5G and Wi-Fi</div>
+    <div class="c">Needs the operator's support; no help on café, venue or satellite networks</div>
+    <div class="c" style="color: var(--quiet)">Not modelled</div>
+
+    <div class="c"><span class="name">Enterprise roaming</span><span class="sub">IEEE 802.11r</span></div>
+    <div class="c">Moves between access points in under 50&nbsp;ms</div>
+    <div class="c">Only inside one network</div>
+    <div class="c">Used inside Infinet</div>
+  </div>
+
+  <div class="adapt">
+    <div class="card cut2"><div class="t"><span class="chip cut1">1</span>Check before use</div><p>Screen every new network, then probe it in quarantine with a separate key.</p></div>
+    <div class="card cut2"><div class="t"><span class="chip cut1">2</span>Move before it breaks</div><p>See the Wi-Fi edge on the coverage map; send on both networks for 2 s.</p></div>
+    <div class="card cut2"><div class="t"><span class="chip cut1">3</span>Seal everything</div><p>One tunnel on every network: even a perfect copy sees only ciphertext.</p></div>
+    <div class="card cut2"><div class="t"><span class="chip cut1">4</span>Patient on satellite</div><p>Adaptive timeouts (RFC 6298) and the learned LEO pattern, not a fixed timeout.</p></div>
+  </div>
+
+  <div class="refs"><b>References</b>J. A. Donenfeld, “WireGuard: Next Generation Kernel Network Tunnel”, NDSS 2017 · 3GPP TS 23.501, Access Traffic Steering, Switching and Splitting (ATSSS) · IETF RFC 8684, Multipath TCP · IETF RFC 6298, retransmission timer</div>
+
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- ───────────── B · QoS / QoE guidelines ───────────── -->
+<section class="slide" id="b">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">QoS / QoE guidelines</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="label eyebrow">What we'd hand an operator or a phone maker</div>
+  <h1>Seven rules keep a moving call alive and private.</h1>
+
+  <div class="grid tbl">
+    <div class="label h"></div><div class="label h">Rule</div><div class="label h">Value we use</div><div class="label h">Evidence <span class="tag">Simulated · 300 runs per scene</span></div>
+
+    <div class="c n"><span class="chip cut1">1</span></div>
+    <div class="c"><span class="name">Hold the voice target</span></div>
+    <div class="c">One-way delay ≤ 150 ms (ITU-T G.114); quality from the E-model (ITU-T G.107); conceal up to 2 lost frames</div>
+    <div class="c ev"><span class="num">4.34 <span class="vs">vs 3.72</span></span><span class="sub">call quality (MOS) leaving a building · Infinet vs today's phone</span></div>
+
+    <div class="c n"><span class="chip cut1">2</span></div>
+    <div class="c"><span class="name">Prepare early, switch late</span></div>
+    <div class="c">Check the next network 5 s before the Wi-Fi edge; switch with under 1.5 s left; Wi-Fi usable above −75 dBm</div>
+    <div class="c ev"><span class="num">3.4<span class="unit">s</span> early</span><span class="sub">average lead before the Wi-Fi faded · 0 s frozen</span></div>
+
+    <div class="c n"><span class="chip cut1">3</span></div>
+    <div class="c"><span class="name">Make before break</span></div>
+    <div class="c">Send on two tunnels for 2 s around a switch, only where the delay meets the playout deadline</div>
+    <div class="c ev"><span class="num">+2–4.4<span class="unit">%</span></span><span class="sub">extra data, by scene: the cost of the second copy</span></div>
+
+    <div class="c n"><span class="chip cut1">4</span></div>
+    <div class="c"><span class="name">Never use an unchecked network</span></div>
+    <div class="c">Screen, then probe in quarantine; timeout max(1 s, 3 × round trip); one flag caps at Tunnel only, two serious flags block</div>
+    <div class="c ev"><span class="num">0 frames</span><span class="sub">over a fake, unchecked or Blocked network in 5,000 runs</span></div>
+
+    <div class="c n"><span class="chip cut1">5</span></div>
+    <div class="c"><span class="name">Seal everything, fail closed</span></div>
+    <div class="c">Every frame in the tunnel on every network; anchor down → nothing in the clear, call ends after 8 s</div>
+    <div class="c ev"><span class="num">Ciphertext only</span><span class="sub">all that a perfect copy of the café Wi-Fi sees</span></div>
+
+    <div class="c n"><span class="chip cut1">6</span></div>
+    <div class="c"><span class="name">Be patient on satellite</span></div>
+    <div class="c">Adaptive timeouts (RFC 6298); learn the 15 s LEO pattern and protect 300 ms before each spike</div>
+    <div class="c ev"><span class="num">0 <span class="vs">vs 10.4</span></span><span class="sub">false “link dead” calls per run · Infinet vs tunnel, no check</span></div>
+
+    <div class="c n"><span class="chip cut1">7</span></div>
+    <div class="c"><span class="name">Don't flap</span></div>
+    <div class="c">Wait 4 s before returning to a Wi-Fi, doubling to 60 s; Wi-Fi first only when checked and unflagged</div>
+    <div class="c ev"><span class="num">2.75 <span class="vs">vs 8.29</span></span><span class="sub">switches per café call · Infinet vs tunnel, no check</span></div>
+  </div>
+
+  <p class="note">Settings marked as assumptions in our settings file are to be tuned with field data. In the desert the call still freezes about 5 s during the satellite failover; the difference is that it is never dropped.</p>
+
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- ───────────── C · AI use ───────────── -->
+<section class="slide" id="c">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">AI use</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="cipher" id="cipher" aria-hidden="true"></div>
+  <div class="label eyebrow">Declaration</div>
+  <h1>We used AI, and we declare it.</h1>
+  <p class="lead">Claude (Anthropic), through Claude Code, was our coding and writing assistant. The idea, the decisions and the survey are ours.</p>
+
+  <div class="row">
+    <div class="card cut2">
+      <div class="label">The assistant</div>
+      <h2>What it did</h2>
+      <ul>
+        <li>Wrote most of the simulation code, tests and tools</li>
+        <li>Built the pipeline that renders our film</li>
+        <li>Drafted documents from our notes and decisions</li>
+        <li>Most of our commits are marked as co-written with it</li>
+      </ul>
+    </div>
+    <div class="card cut2">
+      <div class="label">The team</div>
+      <h2>What we did</h2>
+      <ul>
+        <li>The idea and the problem framing</li>
+        <li>The venue survey, walking the hall with our own phones</li>
+        <li>The scenarios, the baselines and every design decision, logged with its reason</li>
+        <li>Reviewed and tested what it wrote</li>
+      </ul>
+    </div>
+    <div class="card cut2">
+      <div class="label">Honesty</div>
+      <h2>How we checked it</h2>
+      <ul>
+        <li>Every number traces to our settings file: cited, or marked as an assumption (<span class="num">96</span> of <span class="num">163</span>)</li>
+        <li><span class="num">68</span> automated tests</li>
+        <li><span class="num">300</span> seeded runs per scene, not hand-picked; demo runs chosen near the median</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="window cut2">
+    <div class="bar label">Ask us</div>
+    <p>Each of us can explain the tunnel, the trust check and the results in our own words, without the tool.</p>
+  </div>
+
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<script>
+  // Cipher texture (style guide p14): hex pairs at low contrast with a few lit cells. Seeded, so every render is identical.
+  let s = 31;
+  const rnd = () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const rows = [];
+  for (let r = 0; r < 8; r++) {
+    const cells = [];
+    for (let k = 0; k < 19; k++) {
+      const h = Math.floor(rnd() * 256).toString(16).toUpperCase().padStart(2, '0');
+      const x = rnd();
+      cells.push(x < 0.03 ? `<i>${h}</i>` : x < 0.05 ? `<u>${h}</u>` : h);
+    }
+    rows.push(cells.join(' '));
+  }
+  document.getElementById('cipher').innerHTML = rows.join('\n');
+</script>
+</body>
+</html>

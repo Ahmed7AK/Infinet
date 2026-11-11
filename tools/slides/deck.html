@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Infinet deck</title>
+<!--
+  The full Infinet deck (style guide v1.1), 1920 × 1080 slides. Render: node_modules/.bin/tsx tools/slides/render.ts deck
+  → results/slides/deck/. Numbers: results/2026-11-10/summary.json and SUMMARY.md, src/engine/params.ts, our 9 Nov
+  hall survey (aggregates only, no plans), and the market research in the team's planning doc. Stills: the public film.
+-->
+<link rel="stylesheet" href="./brand.css" />
+<style>
+  /* cover */
+  #cover { padding: 0; flex-direction: row; }
+  #cover .left { width: 820px; padding: 0 0 0 96px; display: flex; flex-direction: column; justify-content: center; position: relative; z-index: 2; }
+  #cover .lockup { width: 560px; }
+  #cover .rule { width: 420px; height: 2px; background: var(--night3); margin: 56px 0 44px; }
+  #cover h1 { font-size: 92px; line-height: 1.0; margin: 0; }
+  #cover .lead { margin-top: 28px; max-width: 640px; font-size: 26px; }
+  #cover .meta { position: absolute; left: 96px; bottom: 64px; font-family: var(--data); font-size: 15px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--quiet); line-height: 1.8; }
+  #cover .meta-top { position: absolute; left: 96px; top: 64px; }
+  #cover svg.field { position: absolute; right: 0; top: 0; width: 1100px; height: 1080px; z-index: 1; }
+
+  /* problem */
+  #problem .tiles { margin-top: 60px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  #problem .tile { padding: 40px 40px 44px; gap: 12px; }
+  #problem .tile .scene { font-family: var(--display); font-weight: 700; font-size: 28px; }
+  #problem .tile .row { display: flex; align-items: baseline; gap: 18px; margin-top: 14px; }
+  #problem .tile .big { font-size: 104px; }
+  #problem .tile .big.alert { color: var(--orange); }
+  #problem .tile .cap { font-size: 21px; }
+  #problem .tile .cap b { color: var(--white); font-weight: 500; }
+  #problem .tile hr { border: 0; border-top: 1px solid var(--night3); margin: 18px 0 8px; }
+  #problem .threat { margin-top: 44px; display: flex; gap: 24px; align-items: stretch; }
+  #problem .threat .window { flex: 1; }
+
+  /* idea */
+  #idea .pillars { margin-top: 56px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  #idea .card { padding: 40px 40px 44px; min-height: 440px; display: flex; flex-direction: column; }
+  #idea .card .proof { margin-top: auto !important; }
+  #idea .card .k { font-family: var(--data); font-size: 15px; color: var(--quiet); letter-spacing: 0.08em; }
+  #idea .card h2 { font-size: 40px; margin-top: 18px; }
+  #idea .card p { font-size: 24px; }
+  #idea .card .proof { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--night3); font-family: var(--data); font-size: 17px; color: var(--soft); }
+  #idea .card .proof b { color: var(--white); font-weight: 500; font-size: 26px; }
+  #idea .quote { margin-top: 64px; font-family: var(--display); font-weight: 600; font-size: 44px; color: var(--white); }
+  #idea .quote span { color: var(--quiet); }
+
+  /* how */
+  #how svg.arch { margin-top: 36px; width: 1760px; height: 520px; }
+  #how .notes { margin-top: 22px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  #how .notes div { display: flex; gap: 16px; font-size: 20px; line-height: 1.45; color: var(--soft); }
+  #how .notes b { color: var(--white); font-weight: 600; }
+
+  /* trust */
+  #trust .wrap { margin-top: 36px; display: grid; grid-template-columns: 1000px 1fr; gap: 40px; flex: 1; min-height: 0; padding-bottom: 32px; }
+  #trust .stages { display: flex; gap: 6px; }
+  #trust .stage { flex: 1; background: var(--night2); padding: 16px 16px 18px; }
+  #trust .stage .label { color: var(--cyan); font-size: 13px; }
+  #trust .stage div { margin-top: 8px; font-size: 17px; line-height: 1.4; color: var(--soft); }
+  #trust .vtable { margin-top: 26px; grid-template-columns: 210px 1fr 200px; }
+  #trust .vtable .c { padding: 12px 0; font-size: 19px; display: flex; align-items: center; }
+  #trust .rule { margin-top: 22px; font-size: 19px; line-height: 1.5; color: var(--soft); }
+  #trust .rule b { color: var(--white); font-weight: 600; }
+  #trust .shot { height: 100%; }
+  #trust .shot img { object-position: 70% 50%; }
+
+  /* demo moments */
+  #demo .shots { margin-top: 36px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  #demo .shot { height: 440px; }
+  #demo .shot img { object-position: 60% 40%; }
+  #demo .txt { margin-top: 20px; }
+  #demo .txt .name { font-size: 28px; }
+  #demo .txt p { margin-top: 8px; font-size: 20px; line-height: 1.45; color: var(--soft); }
+  #demo .txt .num { font-size: 20px; }
+
+  /* timeline */
+  #timeline .tl { margin-top: 96px; position: relative; padding-left: 230px; }
+  #timeline .lane { display: flex; align-items: center; height: 96px; gap: 0; }
+  #timeline .lane + .lane { margin-top: 28px; }
+  #timeline .who { position: absolute; left: 0; font-family: var(--display); font-weight: 700; font-size: 28px; }
+  #timeline .seg { height: 72px; display: flex; align-items: center; padding: 0 20px; font-size: 20px; color: var(--soft); white-space: nowrap; overflow: hidden; }
+  #timeline .wifi { background: var(--night3); }
+  #timeline .weak { background: repeating-linear-gradient(135deg, #2B3045 0 10px, #1A1E2E 10px 20px); }
+  #timeline .frozen { background: var(--orange); color: var(--night); font-weight: 600; }
+  #timeline .unchk { background: var(--night2); border: 1.5px solid var(--steel); }
+  #timeline .chk { border: 2px solid var(--cyan); color: var(--cyan); }
+  #timeline .ok { background: var(--violet); color: var(--white); font-weight: 600; }
+  #timeline .marks { position: relative; height: 90px; margin-top: 12px; }
+  #timeline .mark { position: absolute; top: -296px; height: 360px; border-left: 2px dashed var(--quiet); }
+  #timeline .mark span { position: absolute; top: 368px; left: -2px; transform: translateX(-50%); font-family: var(--display); font-weight: 600; font-size: 15px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--quiet); white-space: nowrap; }
+  #timeline .mark.edge { border-color: var(--cyan); }
+  #timeline .mark.edge span { color: var(--cyan); }
+  #timeline .read { margin-top: 64px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  #timeline .read .tile { padding: 32px 34px; }
+  #timeline .read .tile .big { font-size: 64px; }
+  #timeline .read .tile .cap { font-size: 20px; }
+
+  /* results */
+  #results .wrap { margin-top: 30px; display: grid; grid-template-columns: 1100px 1fr; gap: 48px; }
+  #results .legend { display: flex; gap: 28px; align-items: center; font-family: var(--display); font-weight: 600; font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--quiet); }
+  #results .legend i { display: inline-block; width: 22px; height: 12px; margin-right: 10px; vertical-align: middle; }
+  #results .group { margin-top: 26px; }
+  #results .group .scene { font-family: var(--display); font-weight: 700; font-size: 24px; margin-bottom: 10px; }
+  #results .barrow { display: grid; grid-template-columns: 210px 1fr; align-items: center; height: 34px; }
+  #results .barrow .who { font-size: 16px; color: var(--quiet); }
+  #results .track { position: relative; height: 22px; }
+  #results .track .bar { position: absolute; left: 0; top: 0; height: 22px; }
+  #results .tick { position: absolute; top: -5px; width: 3px; height: 32px; background: var(--quiet); }
+  #results .val { position: absolute; top: -1px; font-family: var(--data); font-size: 18px; color: var(--white); white-space: nowrap; }
+  #results .axis { margin-left: 210px; position: relative; height: 30px; margin-top: 16px; border-top: 1px solid var(--steel); }
+  #results .axis span { position: absolute; top: 8px; transform: translateX(-50%); font-family: var(--data); font-size: 14px; color: var(--quiet); }
+  #results .side { display: flex; flex-direction: column; gap: 18px; }
+  #results .side .tile .big { font-size: 48px; }
+
+  /* method */
+  #method .cards { margin-top: 40px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  #method .card { min-height: 250px; }
+  #method .honest { margin-top: 28px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  #method .honest div { display: flex; flex-direction: column; gap: 10px; font-size: 19px; line-height: 1.45; color: var(--soft); }
+
+  /* related work and guidelines (as the extra slides) */
+  #related .tbl { margin-top: 26px; grid-template-columns: 330px 400px 560px 1fr; }
+  #related .tbl .c { padding: 13px 0; }
+  #related .adapt { margin-top: 30px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  #related .adapt .card { padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 12px; }
+  #related .adapt .t { display: flex; align-items: center; gap: 14px; font-family: var(--display); font-weight: 700; font-size: 25px; }
+  #related .adapt p { margin: 0; font-size: 19px; line-height: 1.4; }
+  #related .refs { margin-top: 22px; font-size: 16px; color: var(--quiet); line-height: 1.5; }
+  #related .refs b { font-family: var(--display); font-weight: 600; letter-spacing: 0.16em; font-size: 13px; text-transform: uppercase; margin-right: 10px; }
+  #rules .tbl { margin-top: 30px; grid-template-columns: 48px 330px 720px 1fr; }
+  #rules .tbl .c { display: flex; flex-direction: column; justify-content: center; font-size: 20px; }
+  #rules .ev .num { font-size: 26px; }
+  #rules .ev .sub { font-family: var(--text); font-size: 15px; letter-spacing: 0; }
+  #rules .note { margin-top: 18px; }
+
+  /* venue twin */
+  #venue .wrap { margin-top: 36px; display: grid; grid-template-columns: 1fr 560px; gap: 40px; }
+  #venue .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  #venue .tile .big { font-size: 52px; }
+  #venue .who { margin-top: 0; }
+  #venue .who .card h2 { font-size: 26px; }
+  #venue .who .card ul.sq li { font-size: 19px; }
+  #venue .pipe { margin-top: 26px; display: flex; gap: 6px; }
+  #venue .pipe div { flex: 1; background: var(--night2); padding: 16px 18px; }
+  #venue .pipe .label { color: var(--cyan); font-size: 13px; }
+  #venue .pipe p { margin-top: 6px; font-size: 17px; line-height: 1.4; color: var(--soft); }
+  #venue .grid-bg { position: absolute; right: 0; top: 0; width: 640px; height: 1080px; z-index: 0;
+    background-image: linear-gradient(var(--night3) 1px, transparent 1px), linear-gradient(90deg, var(--night3) 1px, transparent 1px),
+      linear-gradient(#1A1D2C 1px, transparent 1px), linear-gradient(90deg, #1A1D2C 1px, transparent 1px);
+    background-size: 160px 160px, 160px 160px, 32px 32px, 32px 32px; opacity: 0.0; }
+
+  /* products */
+  #products .tbl { margin-top: 30px; grid-template-columns: 250px 360px 1fr 330px; }
+  #products .tbl .c { padding: 13px 0; font-size: 19px; }
+  #products .note { margin-top: 18px; }
+
+  /* market map */
+  #market .wrap { margin-top: 32px; display: grid; grid-template-columns: 1080px 1fr; gap: 48px; }
+  #market .map { position: relative; height: 640px; }
+  #market .quad { position: absolute; width: calc(50% - 4px); height: calc(50% - 4px); background: var(--night2); padding: 22px 24px; }
+  #market .quad .label { color: var(--quiet); font-size: 13px; }
+  #market .quad .chips { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px; }
+  #market .quad .chips span { border: 1.5px solid var(--steel); padding: 8px 14px; font-size: 19px; color: var(--soft); }
+  #market .quad.gap { border: 2px solid var(--violet); background: #160F2E; }
+  #market .quad.gap .chips span { background: var(--violet); border-color: var(--violet); color: var(--white); font-family: var(--display); font-weight: 700; font-size: 22px; }
+  #market .quad p { margin-top: 14px; font-size: 18px; line-height: 1.45; color: var(--soft); }
+  #market .ax { position: absolute; font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--quiet); }
+  #market .side { display: flex; flex-direction: column; gap: 18px; }
+  #market .side .tile .big { font-size: 48px; }
+
+  /* different */
+  #diff .tbl { margin-top: 28px; grid-template-columns: 560px repeat(6, 1fr); column-gap: 0; }
+  #diff .tbl .h { justify-content: center; text-align: center; font-size: 15px; line-height: 1.35; padding: 0 8px 12px; }
+  #diff .tbl .h:first-child { justify-content: flex-start; text-align: left; padding-left: 0; }
+  #diff .tbl .h.inf { background: var(--violet); color: var(--white); padding-top: 12px; }
+  #diff .tbl .c { display: flex; align-items: center; justify-content: center; font-size: 23px; padding: 19px 8px; }
+  #diff .tbl .c.cap { justify-content: flex-start; padding-left: 0; color: var(--white); }
+  #diff .tbl .c.inf { background: #160F2E; }
+  #diff .y, #diff .p, #diff .n { width: 22px; height: 22px; display: inline-block; }
+  #diff .y { background: var(--white); }
+  #diff .inf .y { background: var(--cyan); }
+  #diff .p { border: 2px solid var(--white); background: linear-gradient(135deg, var(--white) 50%, transparent 50%); }
+  #diff .n { width: 18px; height: 2px; background: var(--steel); }
+  #diff .key { margin-top: 16px; display: flex; gap: 28px; align-items: center; font-size: 16px; color: var(--quiet); }
+  #diff .key span { display: inline-flex; align-items: center; gap: 10px; }
+
+  /* plan and ask */
+  #plan .phases { margin-top: 40px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  #plan .card { min-height: 280px; }
+  #plan .card .k { font-family: var(--data); font-size: 15px; color: var(--quiet); }
+  #plan .gate { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--night3); display: flex; gap: 12px; align-items: center; font-size: 18px; color: var(--white); }
+  #plan .gate i { width: 16px; height: 16px; transform: rotate(45deg); border: 2px solid var(--quiet); flex: none; }
+  #plan .gate.key i { background: var(--cyan); border-color: var(--cyan); }
+  #plan .bottom { margin-top: 28px; display: grid; grid-template-columns: 1fr 640px; gap: 24px; }
+  #plan .honesty { display: flex; flex-direction: column; gap: 14px; }
+  #plan .honesty div { display: grid; grid-template-columns: 170px 1fr; align-items: center; font-size: 19px; color: var(--soft); }
+
+  /* ai */
+  #ai .row { margin-top: 44px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  #ai .card { padding: 32px 34px 36px; }
+  #ai .card h2 { font-size: 34px; }
+  #ai ul.sq { margin-top: 22px; }
+  #ai ul.sq li { font-size: 22px; }
+  #ai .window { margin-top: 32px; }
+  #ai .cipher { position: absolute; right: 80px; top: 124px; width: 560px; height: 200px; font-family: var(--data); font-size: 17px;
+    line-height: 25px; letter-spacing: 0.1em; color: #1F2334; white-space: pre; overflow: hidden; }
+  #ai .cipher i { font-style: normal; color: var(--night); background: var(--cyan); }
+  #ai .cipher u { text-decoration: none; color: var(--white); background: var(--violet); }
+  #ai h1, #ai .lead { max-width: 1120px; }
+
+  /* close */
+  #close { padding: 0; flex-direction: row; }
+  #close .left { width: 900px; padding: 0 0 0 96px; display: flex; flex-direction: column; justify-content: center; position: relative; z-index: 2; }
+  #close h1 { font-size: 88px; white-space: nowrap; line-height: 1.0; margin: 0; }
+  #close .ar { margin-top: 26px; font-family: var(--arabic); font-weight: 500; font-size: 44px; color: var(--soft); direction: rtl; text-align: left; }
+  #close .ask { margin-top: 56px; max-width: 700px; }
+  #close .meta { position: absolute; left: 96px; bottom: 64px; font-family: var(--data); font-size: 15px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--quiet); line-height: 1.8; }
+  #close svg.field { position: absolute; right: 0; top: 0; width: 1100px; height: 1080px; z-index: 1; }
+</style>
+</head>
+<body>
+
+<!-- 01 · cover -->
+<section class="slide" id="cover" data-name="01-cover">
+  <svg class="field" viewBox="0 0 1100 1080" aria-hidden="true"></svg>
+  <div class="left">
+    <div class="label meta-top" style="color: var(--quiet)">ATRC Advanced Technology Pioneers 2026 · EDGE track</div>
+    <img class="lockup" src="../film/brand/lockup-night.svg" alt="Infinet" />
+    <div class="rule"></div>
+    <h1>Stay connected.<br />Stay secure.</h1>
+    <p class="lead">Infinet keeps your call alive as you move between Wi-Fi, mobile, satellite and wired networks, and never hands it to a network it hasn't checked.</p>
+  </div>
+  <div class="meta">Team Infinet · 42 Abu Dhabi<br />NSTI Festival · ADNEC Al Ain · Stand 31</div>
+</section>
+
+<!-- 02 · problem -->
+<section class="slide" id="problem" data-name="02-problem">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">The problem</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="label eyebrow">Today's phone · same walk, same signal</div>
+  <h1>Moving between networks still freezes calls, and phones trust any network with a familiar name.</h1>
+  <div class="tiles">
+    <div class="tile cut2"><div class="scene">Leaving a building</div><div class="row"><span class="big alert">6.56<span class="unit">s</span></span></div><div class="cap">frozen on average, waiting for the Wi-Fi to die</div><hr /><div class="cap"><b>202 / 300</b> calls survive</div></div>
+    <div class="tile cut2"><div class="scene">A fake café Wi-Fi</div><div class="row"><span class="big alert">11.45<span class="unit">s</span></span></div><div class="cap">frozen on average, joining a copy of the café's network</div><hr /><div class="cap"><b>882</b> voice frames a call sent readable to the copy</div></div>
+    <div class="tile cut2"><div class="scene">A desert site on satellite</div><div class="row"><span class="big alert">12.68<span class="unit">s</span></span></div><div class="cap">frozen on average when the satellite link fails over</div><hr /><div class="cap"><b>60 / 300</b> calls survive</div></div>
+  </div>
+  <div class="threat">
+    <div class="window cut2"><div class="wbar label">The challenge</div><div class="wbody">How might we keep a user's experience unbroken as they move between Wi-Fi, mobile, satellite and wired networks? <span style="color: var(--quiet)">EDGE challenge statement</span></div></div>
+    <div style="display:flex; align-items:flex-end"><span class="tag">Simulated · 300 runs per scene · today's phone switches after the drop</span></div>
+  </div>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 03 · idea -->
+<section class="slide" id="idea" data-name="03-idea">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">The idea</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="label eyebrow">Three features</div>
+  <h1>See the drop coming. Check before trusting. Keep the call.</h1>
+  <div class="pillars">
+    <div class="card cut2"><div class="k">01 · PREDICT</div><h2>Sees the drop coming</h2><p>Our coverage map knows where the Wi-Fi ends. Heading for that edge gives seconds of warning, not fractions of one.</p><div class="proof"><b>3.4 s</b> early, on average</div></div>
+    <div class="card cut2"><div class="k">02 · TRUST</div><h2>Checks before it trusts</h2><p>Every new network passes a check before our traffic touches it. A fake network never gets the call.</p><div class="proof"><b>0</b> frames over a fake network in 5,000 runs</div></div>
+    <div class="card cut2"><div class="k">03 · TUNNEL</div><h2>Keeps the call</h2><p>One encrypted tunnel to our anchor server, so changing networks never breaks the session.</p><div class="proof"><b>900 / 900</b> calls kept across three scenes</div></div>
+  </div>
+  <div class="quote">Prediction buys time. <span>Infinet spends it on trust.</span></div>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 04 · how it works -->
+<section class="slide" id="how" data-name="04-how-it-works">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">How it works</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="label eyebrow">System design</div>
+  <h1>Every network only ever carries sealed packets to our anchor.</h1>
+  <svg class="arch" viewBox="0 0 1760 520" font-family="IBM Plex Sans">
+    <defs>
+      <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#9AA0B4"/></marker>
+    </defs>
+    <!-- phone -->
+    <polygon points="16,190 236,190 236,314 220,330 0,330 0,206" fill="#151827"/>
+    <text x="28" y="246" font-family="Chakra Petch" font-weight="700" font-size="30" fill="#fff">Your phone</text>
+    <text x="28" y="286" font-family="IBM Plex Mono" font-size="17" fill="#9AA0B4">INFINET APP · COVERAGE MAP</text>
+    <!-- links phone → gate -->
+    <line x1="236" y1="260" x2="316" y2="260" stroke="#9AA0B4" stroke-width="2"/>
+    <!-- trust gate -->
+    <rect x="316" y="20" width="56" height="480" fill="none" stroke="#00EBFF" stroke-width="2" stroke-dasharray="8 6"/>
+    <text x="344" y="270" font-family="Chakra Petch" font-weight="600" font-size="16" letter-spacing="3" fill="#00EBFF" text-anchor="middle" transform="rotate(-90 344 264)">TRUST CHECK</text>
+    <!-- gate → networks -->
+    <g stroke="#9AA0B4" stroke-width="2"><line x1="372" y1="72" x2="440" y2="72"/><line x1="372" y1="196" x2="440" y2="196"/><line x1="372" y1="320" x2="440" y2="320"/></g>
+    <line x1="372" y1="444" x2="440" y2="444" stroke="#FF5A3C" stroke-width="2" stroke-dasharray="6 6"/>
+    <!-- networks -->
+    <polygon points="448,30 840,30 840,104 830,114 440,114 440,40" fill="#730FFF"/>
+    <text x="464" y="68" font-family="Chakra Petch" font-weight="700" font-size="24" fill="#fff">Office Wi-Fi</text>
+    <text x="464" y="98" font-family="IBM Plex Mono" font-size="15" fill="#fff">TRUSTED · CARRIES THE CALL</text>
+    <polygon points="448,154 840,154 840,228 830,238 440,238 440,164" fill="#0A0B14" stroke="#730FFF" stroke-width="2"/>
+    <text x="464" y="192" font-family="Chakra Petch" font-weight="700" font-size="24" fill="#fff">5G / 4G</text>
+    <text x="464" y="222" font-family="IBM Plex Mono" font-size="15" fill="#C9B3FF">TUNNEL ONLY · WARM BACKUP</text>
+    <polygon points="448,278 840,278 840,352 830,362 440,362 440,288" fill="#0A0B14" stroke="#00EBFF" stroke-width="2"/>
+    <text x="464" y="316" font-family="Chakra Petch" font-weight="700" font-size="24" fill="#fff">Satellite · LEO / GEO</text>
+    <text x="464" y="346" font-family="IBM Plex Mono" font-size="15" fill="#00EBFF">CHECKING · PATIENT TIMERS</text>
+    <polygon points="448,402 840,402 840,476 830,486 440,486 440,412" fill="#FF5A3C"/>
+    <text x="464" y="440" font-family="Chakra Petch" font-weight="700" font-size="24" fill="#0A0B14">Café Wi-Fi (copy)</text>
+    <text x="464" y="470" font-family="IBM Plex Mono" font-size="15" fill="#0A0B14">BLOCKED · NOTHING SENT</text>
+    <!-- tunnel: allowed networks converge on the anchor -->
+    <g fill="none" stroke="#730FFF" stroke-width="12" stroke-opacity="0.85" stroke-linecap="square">
+      <path d="M840 72 C 980 72, 1000 230, 1120 250"/>
+      <path d="M840 196 C 960 196, 1000 250, 1120 260"/>
+      <path d="M840 320 C 960 320, 1000 280, 1120 270"/>
+    </g>
+    <text x="900" y="420" font-family="IBM Plex Sans" font-size="19" fill="#C9CCD6">One encrypted tunnel on every road,</text>
+    <text x="900" y="446" font-family="IBM Plex Sans" font-size="19" fill="#C9CCD6">two at once for 2 s during a switch</text>
+    <!-- anchor -->
+    <polygon points="1136,180 1430,180 1430,324 1414,340 1120,340 1120,196" fill="#151827" stroke="#730FFF" stroke-width="2"/>
+    <text x="1144" y="236" font-family="Chakra Petch" font-weight="700" font-size="28" fill="#fff">Anchor server</text>
+    <text x="1144" y="272" font-family="IBM Plex Mono" font-size="15" fill="#9AA0B4">IN-COUNTRY CLOUD</text>
+    <text x="1144" y="298" font-family="IBM Plex Mono" font-size="15" fill="#9AA0B4">PINNED KEY · FAILS CLOSED</text>
+    <!-- anchor → callee -->
+    <line x1="1430" y1="260" x2="1500" y2="260" stroke="#9AA0B4" stroke-width="2" marker-end="url(#ah)"/>
+    <polygon points="1520,206 1760,206 1760,304 1744,320 1504,320 1504,222" fill="#151827"/>
+    <text x="1524" y="256" font-family="Chakra Petch" font-weight="700" font-size="28" fill="#fff">Hamad</text>
+    <text x="1524" y="292" font-family="IBM Plex Mono" font-size="15" fill="#9AA0B4">THE PERSON YOU CALL</text>
+  </svg>
+  <div class="notes">
+    <div><span class="chip cut1">1</span><span><b>Predict.</b> The coverage map shows the Wi-Fi edge; Infinet checks the next network 5 s ahead and switches with 1.5 s left.</span></div>
+    <div><span class="chip cut1">2</span><span><b>Check.</b> Red flags from the scan, then a probe in quarantine with a separate key. The verdict picks the road.</span></div>
+    <div><span class="chip cut1">3</span><span><b>Seal.</b> A WireGuard-style tunnel: tied to keys, not addresses, so the call survives every change of network.</span></div>
+  </div>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 05 · trust check -->
+<section class="slide" id="trust" data-name="05-trust-check">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">The trust check</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="label eyebrow">Before a network carries the call</div>
+  <h1>Five steps, and a fake network never gets the call.</h1>
+  <div class="wrap">
+    <div>
+      <div class="stages">
+        <div class="stage cut1"><span class="label">1 · Appears</span><div>Seen in a scan</div></div>
+        <div class="stage cut1"><span class="label">2 · Screen</span><div>Red flags, before anything is sent</div></div>
+        <div class="stage cut1"><span class="label">3 · Quarantine</span><div>Probe and canaries, separate key</div></div>
+        <div class="stage cut1"><span class="label">4 · Verdict</span><div>One of five states</div></div>
+        <div class="stage cut1"><span class="label">5 · Roam</span><div>The call may move</div></div>
+      </div>
+      <div class="grid vtable">
+        <div class="label h">State</div><div class="label h">Meaning</div><div class="label h">May carry</div>
+        <div class="c"><span class="st checking">Checking</span></div><div class="c">Red flags and handshake running, or a sign-in page</div><div class="c">Nothing yet</div>
+        <div class="c"><span class="st trusted">Trusted</span></div><div class="c">Known network, handshake passed</div><div class="c">The call</div>
+        <div class="c"><span class="st tunnel">Tunnel only</span></div><div class="c">Unknown network, handshake passed</div><div class="c">Only our tunnel</div>
+        <div class="c"><span class="st blocked">Blocked</span></div><div class="c">Handshake failed, or serious red flags</div><div class="c">Nothing</div>
+        <div class="c"><span class="st unchecked">Not checked</span></div><div class="c">Other people's networks, seen, never joined</div><div class="c">Nothing</div>
+      </div>
+      <p class="rule"><b>Red flags:</b> new device for a known name · security downgrade · weak encryption · signal too strong for the map · look-alike name · DNS mismatch. <b>One flag</b> caps at Tunnel only; <b>two serious</b> block before anything is sent.</p>
+    </div>
+    <div class="shot cut2"><img src="./img/ch2b.jpg" alt="" /><span class="cap label">Café copy · blocked</span></div>
+  </div>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 06 · demo -->
+<section class="slide" id="demo" data-name="06-demo">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">The demo</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="label eyebrow">A walkable 3D world · two phones on the same walk</div>
+  <h1>Three moments where today's phone fails, side by side with Infinet.</h1>
+  <div class="shots">
+    <div><div class="shot cut2"><img src="./img/ch1b.jpg" alt="" /><span class="cap label">01 · Leaving the building</span></div>
+      <div class="txt"><div class="name">Sees the drop coming</div><p>The Wi-Fi edge is on the map; Infinet checks 5G first and moves before the drop. <span class="num">0.0 s</span> frozen.</p></div></div>
+    <div><div class="shot cut2"><img src="./img/ch2b.jpg" alt="" /><span class="cap label">02 · The fake café Wi-Fi</span></div>
+      <div class="txt"><div class="name">Checks before it trusts</div><p>Three red flags on the copy: Blocked, nothing sent. The strongest-signal phone joins it.</p></div></div>
+    <div><div class="shot cut2"><img src="./img/ch3c.jpg" alt="" /><span class="cap label">03 · The desert site</span></div>
+      <div class="txt"><div class="name">Patient on satellite</div><p>A 600 ms round trip is normal here, so Infinet holds the call; a fixed timeout calls it dead.</p></div></div>
+  </div>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 07 · handover timeline -->
+<section class="slide" id="timeline" data-name="07-handover">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">The handover</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="label eyebrow">Same walk, same signal · illustration, not measured data</div>
+  <h1>Today's phone waits for the Wi-Fi to die. Infinet moves before it does.</h1>
+  <div class="tl">
+    <div class="lane"><span class="who">Today's phone</span>
+      <div class="seg wifi" style="width: 520px">Wi-Fi</div><div class="seg weak" style="width: 300px">getting weak</div><div class="seg frozen" style="width: 300px">call frozen</div><div class="seg unchk" style="width: 410px">5G · not checked</div></div>
+    <div class="lane"><span class="who">Infinet</span>
+      <div class="seg wifi" style="width: 520px">Wi-Fi</div><div class="seg chk" style="width: 300px">checking 5G</div><div class="seg ok" style="width: 710px">5G · trusted · call continues</div></div>
+    <div class="marks"><div class="mark edge" style="left: 520px"><span>Edge seen on the map</span></div><div class="mark" style="left: 820px"><span>Wi-Fi actually dies</span></div></div>
+  </div>
+  <div class="read">
+    <div class="tile cut2"><span class="big">3.4<span class="unit">s</span></span><span class="cap">average warning before the Wi-Fi faded below −75 dBm</span></div>
+    <div class="tile cut2"><span class="big">0.0<span class="unit">s</span></span><span class="cap">Infinet frozen leaving the building, against 6.56 s for today's phone</span></div>
+    <div class="tile cut2"><span class="big">2<span class="unit">s</span></span><span class="cap">on both networks during the switch, so no voice is lost</span></div>
+  </div>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 08 · results -->
+<section class="slide" id="results" data-name="08-results">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">Results</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="label eyebrow">Seconds frozen per call · bar = average · tick = worst of 300 runs</div>
+  <h1>Infinet cuts frozen time in every scene, and keeps every call.</h1>
+  <div class="wrap">
+    <div>
+      <div class="legend"><span><i style="background:#3A3F52"></i>Today's phone</span><span><i style="background:#5C6272"></i>Tunnel, no check</span><span><i style="background:#730FFF"></i>Infinet</span><span class="tag">Simulated · n = 300 per scene</span></div>
+      <div id="chart"></div>
+    </div>
+    <div class="side">
+      <div class="tile cut2"><span class="vs">Calls survived · all three scenes</span><span class="big">900 / 900</span><span class="cap">today's phone: 427 / 900</span></div>
+      <div class="tile cut2"><span class="vs">Voice frames over a fake network</span><span class="big">0</span><span class="cap">in 5,000 randomised runs, attacks included</span></div>
+      <div class="tile cut2"><span class="vs">The cost of being careful</span><span class="big">+2–4.4<span class="unit">%</span></span><span class="cap">extra data from the 2 s duplication</span></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 14px">Read honestly: one café run froze 12.7 s for Infinet; in the desert the call still freezes about 5 s during the satellite failover, but is never dropped.</p>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 09 · method -->
+<section class="slide" id="method" data-name="09-method">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">Method</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="label eyebrow">How we know</div>
+  <h1>A fair race: same walk, same radio, every phone.</h1>
+  <div class="cards">
+    <div class="card cut2"><div class="label">Fair comparison</div><h2>Common random numbers</h2><p>Every policy rides the same walk, the same fading and the same attacker in each run. Only the decisions differ.</p></div>
+    <div class="card cut2"><div class="label">Enough runs</div><h2>300 runs per scene</h2><p>Speed, start, shadowing, map error, attacker power and satellite timing all randomised. Mean, p95 and 95% bootstrap intervals.</p></div>
+    <div class="card cut2"><div class="label">Safety property</div><h2>5,000-run property test</h2><p>Including relay attacks and forged disconnects: zero voice frames over a fake, unchecked or Blocked network.</p></div>
+    <div class="card cut2"><div class="label">Ablations</div><h2>Switch each part off</h2><p>Without the trust check, Infinet accepts the fake café network in about half the runs (0.48). The check is what keeps it out.</p></div>
+    <div class="card cut2"><div class="label">Grounded inputs</div><h2>Cited or labelled</h2><p>3GPP TR 38.901 radio, ITU-T G.107 / G.114 voice, published LEO and GEO measurements. 96 of 163 settings are marked as assumptions.</p></div>
+    <div class="card cut2"><div class="label">Real data</div><h2>Our venue, measured</h2><p>The hall's Wi-Fi is fitted to our own 27-point phone survey: 27 access points placed, 5 GHz within 3.8 dB.</p></div>
+  </div>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 10 · related work -->
+<section class="slide" id="related" data-name="10-related-work">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">Related work</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="label eyebrow">What exists · what we adapted</div>
+  <h1>Phones and VPNs already move calls between networks. None checks a network before using it.</h1>
+  <div class="grid tbl">
+    <div class="label h">Existing mechanism</div><div class="label h">Does well</div><div class="label h">Misses</div><div class="label h">In our results <span class="tag">Simulated</span></div>
+    <div class="c"><span class="name">The phone's own switch</span><span class="sub">Wi-Fi → mobile when Wi-Fi is poor</span></div><div class="c">Built in, no setup</div><div class="c">Moves after the call suffers; joins any saved name, even a copy</div><div class="c"><span class="num">6.56<span class="unit">s</span></span> frozen leaving a building</div>
+    <div class="c"><span class="name">Multipath TCP</span><span class="sub">RFC 8684</span></div><div class="c">Keeps a TCP connection over Wi-Fi and mobile</div><div class="c">TCP only, not real-time voice; each app must support it</div><div class="c"><span class="num">1.6<span class="unit">s</span></span> median reconnect, from iPhone measurements</div>
+    <div class="c"><span class="name">Roaming VPN tunnel</span><span class="sub">WireGuard, NDSS 2017</span></div><div class="c">The call survives a new address, sealed</div><div class="c">Doesn't know when to move, or which networks are safe</div><div class="c"><span class="num">8.29</span> switches per café call</div>
+    <div class="c"><span class="name">Operator steering</span><span class="sub">3GPP ATSSS · TS 23.501</span></div><div class="c">The operator's core splits traffic over 5G and Wi-Fi</div><div class="c">Needs the operator's support; no help on café, venue or satellite networks</div><div class="c" style="color: var(--quiet)">Not modelled</div>
+    <div class="c"><span class="name">Enterprise roaming</span><span class="sub">IEEE 802.11r</span></div><div class="c">Moves between access points in under 50&nbsp;ms</div><div class="c">Only inside one network</div><div class="c">Used inside Infinet</div>
+  </div>
+  <div class="adapt">
+    <div class="card cut2"><div class="t"><span class="chip cut1">1</span>Check before use</div><p>Screen every new network, then probe it in quarantine with a separate key.</p></div>
+    <div class="card cut2"><div class="t"><span class="chip cut1">2</span>Move before it breaks</div><p>See the Wi-Fi edge on the coverage map; send on both networks for 2 s.</p></div>
+    <div class="card cut2"><div class="t"><span class="chip cut1">3</span>Seal everything</div><p>One tunnel on every network: even a perfect copy sees only ciphertext.</p></div>
+    <div class="card cut2"><div class="t"><span class="chip cut1">4</span>Patient on satellite</div><p>Adaptive timeouts (RFC 6298) and the learned LEO pattern, not a fixed timeout.</p></div>
+  </div>
+  <div class="refs"><b>References</b>J. A. Donenfeld, “WireGuard: Next Generation Kernel Network Tunnel”, NDSS 2017 · 3GPP TS 23.501, ATSSS · IETF RFC 8684, Multipath TCP · IETF RFC 6298, retransmission timer</div>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 11 · guidelines -->
+<section class="slide" id="rules" data-name="11-qos-guidelines">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">QoS / QoE guidelines</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="label eyebrow">What we'd hand an operator or a phone maker</div>
+  <h1>Seven rules keep a moving call alive and private.</h1>
+  <div class="grid tbl">
+    <div class="label h"></div><div class="label h">Rule</div><div class="label h">Value we use</div><div class="label h">Evidence <span class="tag">Simulated · 300 runs per scene</span></div>
+    <div class="c"><span class="chip cut1">1</span></div><div class="c"><span class="name">Hold the voice target</span></div><div class="c">One-way delay ≤ 150 ms (ITU-T G.114); quality from the E-model (ITU-T G.107); conceal up to 2 lost frames</div><div class="c ev"><span class="num">4.34 <span class="vs">vs 3.72</span></span><span class="sub">call quality (MOS) leaving a building · Infinet vs today's phone</span></div>
+    <div class="c"><span class="chip cut1">2</span></div><div class="c"><span class="name">Prepare early, switch late</span></div><div class="c">Check the next network 5 s before the Wi-Fi edge; switch with under 1.5 s left; Wi-Fi usable above −75 dBm</div><div class="c ev"><span class="num">3.4<span class="unit">s</span> early</span><span class="sub">average lead before the Wi-Fi faded · 0 s frozen</span></div>
+    <div class="c"><span class="chip cut1">3</span></div><div class="c"><span class="name">Make before break</span></div><div class="c">Send on two tunnels for 2 s around a switch, only where the delay meets the playout deadline</div><div class="c ev"><span class="num">+2–4.4<span class="unit">%</span></span><span class="sub">extra data, by scene: the cost of the second copy</span></div>
+    <div class="c"><span class="chip cut1">4</span></div><div class="c"><span class="name">Never use an unchecked network</span></div><div class="c">Screen, then probe in quarantine; timeout max(1 s, 3 × round trip); one flag caps at Tunnel only, two serious flags block</div><div class="c ev"><span class="num">0 frames</span><span class="sub">over a fake, unchecked or Blocked network in 5,000 runs</span></div>
+    <div class="c"><span class="chip cut1">5</span></div><div class="c"><span class="name">Seal everything, fail closed</span></div><div class="c">Every frame in the tunnel on every network; anchor down → nothing in the clear, call ends after 8 s</div><div class="c ev"><span class="num">Ciphertext only</span><span class="sub">all that a perfect copy of the café Wi-Fi sees</span></div>
+    <div class="c"><span class="chip cut1">6</span></div><div class="c"><span class="name">Be patient on satellite</span></div><div class="c">Adaptive timeouts (RFC 6298); learn the 15 s LEO pattern and protect 300 ms before each spike</div><div class="c ev"><span class="num">0 <span class="vs">vs 10.4</span></span><span class="sub">false “link dead” calls per run · Infinet vs tunnel, no check</span></div>
+    <div class="c"><span class="chip cut1">7</span></div><div class="c"><span class="name">Don't flap</span></div><div class="c">Wait 4 s before returning to a Wi-Fi, doubling to 60 s; Wi-Fi first only when checked and unflagged</div><div class="c ev"><span class="num">2.75 <span class="vs">vs 8.29</span></span><span class="sub">switches per café call · Infinet vs tunnel, no check</span></div>
+  </div>
+  <p class="note">Settings marked as assumptions are to be tuned with field data.</p>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 12 · the venue twin -->
+<section class="slide" id="venue" data-name="12-venue-twin">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">Real-world deployment</span><span class="label right">Infinet · Venue twin</span></div>
+  <div class="label eyebrow">The map Infinet needs, built from one phone walk</div>
+  <h1>We mapped this hall with one Android phone, and rebuilt it as a walkable twin.</h1>
+  <div class="pipe">
+    <div class="cut1"><span class="label">1 · Survey</span><p>Our app listens only; a point every 4–5 m</p></div>
+    <div class="cut1"><span class="label">2 · Fit</span><p>A radio model fitted to the scans</p></div>
+    <div class="cut1"><span class="label">3 · Rebuild</span><p>The hall in 3D, with its crowd</p></div>
+    <div class="cut1"><span class="label">4 · Use</span><p>Plan, rehearse, screen for fakes</p></div>
+  </div>
+  <div class="wrap">
+    <div class="tiles">
+      <div class="tile cut2"><span class="big">27</span><span class="cap">survey points on set-up day, checked against a second phone</span></div>
+      <div class="tile cut2"><span class="big">27</span><span class="cap">venue access points placed from the signal</span></div>
+      <div class="tile cut2"><span class="big">3.8<span class="unit">dB</span></span><span class="cap">5 GHz fit to our measurements (RMS)</span></div>
+      <div class="tile cut2"><span class="big">64</span><span class="cap">phone hotspots and 35 other devices, placed anonymously</span></div>
+      <div class="tile cut2"><span class="big">~20</span><span class="cap">hotspots heard at any spot in the hall</span></div>
+      <div class="tile cut2"><span class="big">4G</span><span class="cap">everywhere inside; never a 5G cell</span></div>
+    </div>
+    <div class="who">
+      <div class="card cut2"><div class="label">A product of its own</div><h2>Who would use it</h2>
+        <ul class="sq" style="margin-top: 18px">
+          <li>Venues and organisers, before a big event</li>
+          <li>Security teams: every network on the floor screened</li>
+          <li>Operators: measured indoor gaps, with the crowd</li>
+          <li>Phones running Infinet: the coverage map itself</li>
+        </ul>
+        <p style="font-size: 17px; color: var(--quiet)">Other people's network names are never stored: each is a salted hash on the phone.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 13 · existing products -->
+<section class="slide" id="products" data-name="13-existing-products">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">Existing products</span><span class="label right">Infinet · Venue twin</span></div>
+  <div class="label eyebrow">The market today</div>
+  <h1>Good tools exist, and every one is built for radio engineers.</h1>
+  <div class="grid tbl">
+    <div class="label h">Product</div><div class="label h">Owner</div><div class="label h">What it does</div><div class="label h">Listed price</div>
+    <div class="c"><span class="name">Ekahau</span></div><div class="c">Ookla; Accenture agreed to buy Ookla (Mar 2026)</div><div class="c">Wi-Fi design and survey, with its own survey hardware</div><div class="c">≈ $1.5–2.5k a year + hardware ≈ $5k <span class="sub">reseller listings</span></div>
+    <div class="c"><span class="name">Hamina</span></div><div class="c">Helsinki start-up, seed round 2025</div><div class="c">Cloud Wi-Fi and private 5G planning, on-site survey</div><div class="c">$590–980 a year per tool</div>
+    <div class="c"><span class="name">NetSpot</span></div><div class="c">Independent</div><div class="c">Simple laptop Wi-Fi survey with heatmaps</div><div class="c">≈ $149–499 one-off <span class="sub">reseller listings</span></div>
+    <div class="c"><span class="name">iBwave</span></div><div class="c">Corning, since 2015</div><div class="c">In-building cellular and Wi-Fi design; 600+ operators, integrators and vendors</div><div class="c">On quote</div>
+    <div class="c"><span class="name">Ranplan</span></div><div class="c">Ranplan Wireless</div><div class="c">In-building and outdoor planning; interactive 3D twins on NVIDIA Omniverse (MWC 2026)</div><div class="c">On quote</div>
+    <div class="c"><span class="name">Remcom</span></div><div class="c">Remcom</div><div class="c">Ray-traced radio propagation for indoor and urban twins</div><div class="c">On quote</div>
+    <div class="c"><span class="name">Rogue-AP detection</span></div><div class="c">Network vendors</div><div class="c">Finds rogue and “evil twin” access points, with sensors in the venue's network</div><div class="c">Part of the network</div>
+  </div>
+  <p class="note">Sources: vendor and press pages checked 10 Nov 2026; prices marked “reseller listings” were not confirmed with the vendor.</p>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 14 · market map -->
+<section class="slide" id="market" data-name="14-market-map">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">Market map</span><span class="label right">Infinet · Venue twin</span></div>
+  <div class="label eyebrow">Who it's built for × what it sees</div>
+  <h1>Engineers are well served. Nobody sells venue owners the crowd's view.</h1>
+  <div class="wrap">
+    <div class="map">
+      <span class="ax" style="left: 0; top: -26px">↑ Crowd and threats</span>
+      <div class="quad cut2" style="left: 0; top: 0"><div class="label">Measure the live crowd or threats</div><div class="chips"><span>Ookla Wind, RootMetrics</span><span>Rogue-AP detection</span></div><p>For operators and IT security, with their own sensors.</p></div>
+      <div class="quad gap cut2" style="right: 0; top: 0"><div class="label">The gap we fill</div><div class="chips"><span>Infinet Venue Twin</span></div><p>One phone walk, the crowd's hotspots, fake-network screening, and a 3D twin a non-engineer can walk.</p></div>
+      <div class="quad cut2" style="left: 0; bottom: 0"><div class="label">Design and survey tools</div><div class="chips"><span>Ekahau</span><span>Hamina</span><span>NetSpot</span><span>iBwave</span><span>Ranplan</span><span>Remcom</span></div></div>
+      <div class="quad cut2" style="right: 0; bottom: 0"><div class="label">Owners · venue network only</div><p>No product we found.</p></div>
+      <span class="ax" style="left: 0; bottom: -30px">Radio engineers</span><span class="ax" style="right: 0; bottom: -30px">Venue and event owners →</span>
+    </div>
+    <div class="side">
+      <div class="tile cut2"><span class="vs">Abu Dhabi business events, 2025</span><span class="big">6,600</span><span class="cap">up 37%, with 2.2 million delegates (DCT Abu Dhabi)</span></div>
+      <div class="tile cut2"><span class="vs">Consolidation</span><span class="cap" style="font-size: 20px; color: var(--white)">Ekahau is part of Ookla, which Accenture agreed to buy in 2026; iBwave belongs to Corning.</span></div>
+      <div class="tile cut2"><span class="vs">Watch</span><span class="cap" style="font-size: 20px; color: var(--white)">Ranplan's 3D twins move towards owners. 3D alone is not our edge; the crowd and the trust check are.</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 15 · what we do differently -->
+<section class="slide" id="diff" data-name="15-what-we-do-differently">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">What we do differently</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="label eyebrow">Side by side</div>
+  <h1>The others each solve one piece. Infinet puts them together.</h1>
+  <div class="grid tbl">
+    <div class="label h"></div><div class="label h">Today's<br />phone</div><div class="label h">Roaming<br />VPN</div><div class="label h">Multipath<br />TCP</div><div class="label h">Operator<br />steering</div><div class="label h">Survey<br />tools</div><div class="label h inf">Infinet</div>
+    <div class="c cap">Keeps the call across networks</div><div class="c"><i class="p"></i></div><div class="c"><i class="y"></i></div><div class="c"><i class="p"></i></div><div class="c"><i class="y"></i></div><div class="c"><i class="n"></i></div><div class="c inf"><i class="y"></i></div>
+    <div class="c cap">Moves before the Wi-Fi drops</div><div class="c"><i class="n"></i></div><div class="c"><i class="n"></i></div><div class="c"><i class="p"></i></div><div class="c"><i class="p"></i></div><div class="c"><i class="n"></i></div><div class="c inf"><i class="y"></i></div>
+    <div class="c cap">Checks a network before using it</div><div class="c"><i class="n"></i></div><div class="c"><i class="n"></i></div><div class="c"><i class="n"></i></div><div class="c"><i class="p"></i></div><div class="c"><i class="n"></i></div><div class="c inf"><i class="y"></i></div>
+    <div class="c cap">Seals every frame on every network</div><div class="c"><i class="n"></i></div><div class="c"><i class="y"></i></div><div class="c"><i class="n"></i></div><div class="c"><i class="p"></i></div><div class="c"><i class="n"></i></div><div class="c inf"><i class="y"></i></div>
+    <div class="c cap">Patient on satellite links</div><div class="c"><i class="n"></i></div><div class="c"><i class="n"></i></div><div class="c"><i class="p"></i></div><div class="c"><i class="n"></i></div><div class="c"><i class="n"></i></div><div class="c inf"><i class="y"></i></div>
+    <div class="c cap">Works on any café, venue or satellite network</div><div class="c"><i class="y"></i></div><div class="c"><i class="y"></i></div><div class="c"><i class="p"></i></div><div class="c"><i class="n"></i></div><div class="c"><i class="n"></i></div><div class="c inf"><i class="y"></i></div>
+    <div class="c cap">Maps a venue from an ordinary phone</div><div class="c"><i class="n"></i></div><div class="c"><i class="n"></i></div><div class="c"><i class="n"></i></div><div class="c"><i class="n"></i></div><div class="c"><i class="p"></i></div><div class="c inf"><i class="y"></i></div>
+    <div class="c cap">Shows the crowd's hotspots and fakes</div><div class="c"><i class="n"></i></div><div class="c"><i class="n"></i></div><div class="c"><i class="n"></i></div><div class="c"><i class="n"></i></div><div class="c"><i class="p"></i></div><div class="c inf"><i class="y"></i></div>
+  </div>
+  <div class="key"><span><i class="y" style="width:18px;height:18px;display:inline-block;background:var(--white)"></i>Yes</span><span><i class="p" style="width:18px;height:18px;display:inline-block;border:2px solid var(--white);background:linear-gradient(135deg,var(--white) 50%,transparent 50%)"></i>Partly, or only in some setups</span><span><i style="width:18px;height:2px;display:inline-block;background:var(--steel)"></i>No</span><span style="margin-left:auto">Our reading of each approach's public documentation; Infinet's column is simulated, not yet field-tested.</span></div>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 16 · plan and ask -->
+<section class="slide" id="plan" data-name="16-plan-and-ask">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">Next</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="label eyebrow">From simulation to a pilot</div>
+  <h1>Ninety days to a paying pilot, with one gate that decides.</h1>
+  <div class="phases">
+    <div class="card cut2"><div class="k">WEEKS 1–2</div><h2>Prove it</h2><ul class="sq" style="margin-top: 16px"><li>Accuracy on survey points left out</li><li>A real WireGuard handover on a phone</li><li>Ten interviews with venues and organisers</li></ul><div class="gate"><i></i>Gate: accuracy known, three want a pilot</div></div>
+    <div class="card cut2"><div class="k">WEEKS 3–8</div><h2>Pilot</h2><ul class="sq" style="margin-top: 16px"><li>Map one partner site or event</li><li>Re-survey on the day; compare</li><li>Test the price</li></ul><div class="gate key"><i></i>Gate: one paid pilot or letter of intent</div></div>
+    <div class="card cut2"><div class="k">WEEKS 9–13</div><h2>Productise</h2><ul class="sq" style="margin-top: 16px"><li>Automatic fitting from uploads</li><li>A web viewer for the twin</li><li>The Infinet app on real phones</li></ul><div class="gate"><i></i>Gate: a second paying customer</div></div>
+  </div>
+  <div class="bottom">
+    <div class="honesty">
+      <div><span class="tag built">Built</span>Decision logic, the simulation, the 3D world, the live scanner, the survey app</div>
+      <div><span class="tag">Simulated</span>The networks, the anchor server, the attacks</div>
+      <div><span class="tag next">Next</span>A real handover on a phone, accuracy on unseen points, a pilot</div>
+    </div>
+    <div class="window cut2"><div class="wbar label">Our ask</div><div class="wbody">One pilot: a building or an event of yours. We map it, deliver the twin and a report in two weeks, and you decide if it's worth paying for.</div></div>
+  </div>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 17 · AI use -->
+<section class="slide" id="ai" data-name="17-ai-use">
+  <div class="top"><img src="../film/brand/mark-white.svg" alt="" /><span class="bar"></span><span class="label">AI use</span><span class="label right">Infinet · EDGE track</span></div>
+  <div class="cipher" aria-hidden="true"></div>
+  <div class="label eyebrow">Declaration</div>
+  <h1>We used AI, and we declare it.</h1>
+  <p class="lead">Claude (Anthropic), through Claude Code, was our coding and writing assistant. The idea, the decisions and the survey are ours.</p>
+  <div class="row">
+    <div class="card cut2"><div class="label">The assistant</div><h2>What it did</h2><ul class="sq"><li>Wrote most of the simulation code, tests and tools</li><li>Built the pipeline that renders our film</li><li>Drafted documents from our notes and decisions</li><li>Most of our commits are marked as co-written with it</li></ul></div>
+    <div class="card cut2"><div class="label">The team</div><h2>What we did</h2><ul class="sq"><li>The idea and the problem framing</li><li>The venue survey, walking the hall with our own phones</li><li>The scenarios, the baselines and every design decision, logged with its reason</li><li>Reviewed and tested what it wrote</li></ul></div>
+    <div class="card cut2"><div class="label">Honesty</div><h2>How we checked it</h2><ul class="sq"><li>Every number traces to our settings file: cited, or marked as an assumption (<span class="num">96</span> of <span class="num">163</span>)</li><li><span class="num">68</span> automated tests</li><li><span class="num">300</span> seeded runs per scene, not hand-picked; demo runs chosen near the median</li></ul></div>
+  </div>
+  <div class="window cut2"><div class="wbar label">Ask us</div><div class="wbody">Each of us can explain the tunnel, the trust check and the results in our own words, without the tool.</div></div>
+  <div class="foot"><span>Team Infinet · 42 Abu Dhabi</span><span class="right">ATRC ATP 2026 · EDGE · Stand 31</span></div>
+</section>
+
+<!-- 18 · close -->
+<section class="slide" id="close" data-name="18-close">
+  <svg class="field" viewBox="0 0 1100 1080" aria-hidden="true"></svg>
+  <div class="left">
+    <img src="../film/brand/mark-white.svg" alt="" style="width: 150px; margin-bottom: 48px" />
+    <h1>Stay connected.<br />Stay secure.</h1>
+    <div class="ar">ابقَ متصلاً. ابقَ آمناً.</div>
+    <div class="window cut2 ask"><div class="wbar label">Thank you · questions</div><div class="wbody">Walk the demo with us at Stand 31: leaving the building, the fake café Wi-Fi, the desert site, and this hall.</div></div>
+  </div>
+  <div class="meta">Team Infinet · 42 Abu Dhabi<br />Developed in the EDGE track of ATRC ATP 2026</div>
+</section>
+
+<script>
+  // Seeded random, so every render is identical.
+  let s = 31;
+  const rnd = () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
+
+  // Signal field (style guide p14): cells shrink with distance from the source and change colour by the signal bins.
+  function field(svg, sx, sy) {
+    const bins = [[-55, '#00EBFF'], [-62, '#730FFF'], [-68, '#560EBD'], [-73, '#3C0D85'], [-77, '#2A0C5A'], [-Infinity, '#FF5A3C']];
+    const pitch = 36, out = [];
+    for (let y = 18; y < 1080; y += pitch) for (let x = 18; x < 1100; x += pitch) {
+      const d = Math.hypot(x - sx, y - sy) / 36;
+      const dbm = -38 - 20 * Math.log10(1 + d * 1.6) - rnd() * 6;
+      if (dbm < -86 && rnd() < 0.7) continue;
+      const col = bins.find(([t]) => dbm >= t)[1];
+      const size = Math.max(5, Math.min(26, 26 + (dbm + 50) * 0.55));
+      if (x < 120 && rnd() < 0.6) continue;
+      out.push(`<rect x="${(x - size / 2).toFixed(1)}" y="${(y - size / 2).toFixed(1)}" width="${size.toFixed(1)}" height="${size.toFixed(1)}" fill="${col}" opacity="${col === '#FF5A3C' ? 0.75 : 1}"/>`);
+    }
+    svg.innerHTML = out.join('');
+  }
+  field(document.querySelector('#cover svg.field'), 700, 420);
+  field(document.querySelector('#close svg.field'), 760, 560);
+
+  // Cipher texture for the AI slide.
+  const rows = [];
+  for (let r = 0; r < 8; r++) {
+    const cells = [];
+    for (let k = 0; k < 19; k++) {
+      const h = Math.floor(rnd() * 256).toString(16).toUpperCase().padStart(2, '0');
+      const x = rnd();
+      cells.push(x < 0.03 ? `<i>${h}</i>` : x < 0.05 ? `<u>${h}</u>` : h);
+    }
+    rows.push(cells.join(' '));
+  }
+  document.querySelector('#ai .cipher').innerHTML = rows.join('\n');
+
+  // Results chart: seconds frozen, bar = average, tick = worst run (results/2026-11-10/summary.json).
+  const data = [
+    ['Leaving a building', [6.56, 20.38], [0.10, 1.42], [0.00, 0.58]],
+    ['A fake café Wi-Fi', [11.45, 38.46], [3.11, 15.70], [0.13, 12.68]],
+    ['A desert site on satellite', [12.68, 21.32], [11.87, 19.70], [4.96, 6.70]],
+  ];
+  const who = [["Today's phone", '#3A3F52'], ['Tunnel, no check', '#5C6272'], ['Infinet', '#730FFF']];
+  const W = 850, max = 40, px = (v) => (v / max) * W;
+  let html = '';
+  for (const [scene, ...vals] of data) {
+    html += `<div class="group"><div class="scene">${scene}</div>`;
+    vals.forEach(([mean, worst], i) => {
+      const w = Math.max(px(mean), 3);
+      html += `<div class="barrow"><span class="who">${who[i][0]}</span><div class="track">` +
+        `<div class="bar" style="width:${w}px;background:${who[i][1]}"></div>` +
+        `<div class="tick" style="left:${px(worst)}px"></div>` +
+        `<span class="val" style="left:${(px(worst) > w - 2 && px(worst) < w + 100 ? px(worst) : w) + 12}px">${mean.toFixed(2)}<span class="unit">s</span></span></div></div>`;
+    });
+    html += '</div>';
+  }
+  html += `<div class="axis">${[0, 10, 20, 30, 40].map((t) => `<span style="left:${px(t)}px">${t} s</span>`).join('')}</div>`;
+  document.getElementById('chart').innerHTML = html;
+</script>
+</body>
+</html>
