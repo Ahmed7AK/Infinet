@@ -17,6 +17,12 @@ Downloaded by `tools/assets/fetch-polyhaven.ts` (raw files in `assets-src/downlo
 | public/textures/sand/ | Poly Haven `coast_sand_01` (2k) | CC0 | https://polyhaven.com/a/coast_sand_01 |
 | public/textures/paint/ | Poly Haven `painted_plaster_wall` (1k) | CC0 | https://polyhaven.com/a/painted_plaster_wall |
 | public/textures/concrete/ | Poly Haven `concrete_floor_02` (1k) | CC0 | https://polyhaven.com/a/concrete_floor_02 |
+| public/textures/planks/ | Poly Haven `brown_planks_03` (1k) | CC0 | https://polyhaven.com/a/brown_planks_03 |
+| public/textures/deck/ | Poly Haven `wood_floor_deck` (1k) | CC0 | https://polyhaven.com/a/wood_floor_deck |
+| public/textures/track/ | Poly Haven `rubberized_track` (1k) | CC0 | https://polyhaven.com/a/rubberized_track |
+| public/textures/stucco/ | Poly Haven `white_stucco` (1k) | CC0 | https://polyhaven.com/a/white_stucco |
+| public/textures/ribbed/ | Poly Haven `corrugated_iron` (1k) | CC0 | https://polyhaven.com/a/corrugated_iron |
+| public/textures/flagstone/ | Poly Haven `red_sandstone_pavement` (1k) | CC0 | https://polyhaven.com/a/red_sandstone_pavement |
 
 ## 3D models
 

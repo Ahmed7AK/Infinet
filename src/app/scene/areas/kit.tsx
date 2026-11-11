@@ -1,7 +1,8 @@
 /**
  * Shared pieces for the four places added on 11 Nov (park, Downtown, metro station, old souk). Everything is built
  * in code from the same local geometry the radio model uses (src/engine/world/areas.ts) plus the props already in
- * public/models: no new downloads. Surfaces that have no Poly Haven set (grass, water, curtain wall, arched façades)
+ * public/models, and six more Poly Haven texture sets (planks, deck, running track, stucco, ribbed metal, flagstones).
+ * Surfaces that have no Poly Haven set (lawn, water, curtain wall, arched façades, cloth, foliage)
  * are drawn once on a canvas at start-up, generic patterns only: no words, logos or anyone's building.
  *
  * Coordinates here are the area's own frame (x east, y north, metres); `<Area>` moves the group to the area's
@@ -11,7 +12,7 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, type JSX, type ReactNode } from 'react';
 import * as THREE from 'three';
 import { AREA_ORIGIN, type AreaId, type Vec2 } from '../../../engine/index';
-import { boxGeo, floorGeo, MAT, useModel, type ModelName } from '../assets';
+import { boxGeo, floorGeo, MAT, pbr, useModel, type ModelName } from '../assets';
 import { camOccluders, visionK } from '../vision';
 
 export const faceCompass = (deg: number) => ((180 - deg) * Math.PI) / 180;
@@ -99,6 +100,9 @@ function grassTex() {
       g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
     }
     g.globalAlpha = 1;
+    // mowing stripes: two 3 m bands a shade apart
+    g.fillStyle = 'rgba(255,255,230,0.07)'; g.fillRect(0, 0, w / 2, h);
+    g.fillStyle = 'rgba(0,30,0,0.06)'; g.fillRect(w / 2, 0, w / 2, h);
   });
 }
 /** small ripples as a normal map (tileable sum of sines) */
@@ -168,33 +172,145 @@ function punchedTex(key: string, wall: string) {
       g.fillRect(x, y, w * 0.28, h * 0.27);
       g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(x, y, w * 0.28, 4);
       g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(x - 3, y + h * 0.27, w * 0.28 + 6, 4);
+      // a glazing bar, and the stain that runs down from the sill
+      g.fillStyle = 'rgba(230,230,225,0.7)'; g.fillRect(x + w * 0.14 - 1, y, 2, h * 0.27);
+      const st = g.createLinearGradient(0, y + h * 0.27, 0, y + h * 0.44);
+      st.addColorStop(0, 'rgba(70,60,45,0.16)'); st.addColorStop(1, 'rgba(70,60,45,0)');
+      g.fillStyle = st; g.fillRect(x + r() * w * 0.2, y + h * 0.27 + 4, w * 0.03 + r() * w * 0.05, h * 0.17);
     }
+    for (let i = 0; i < 500; i++) { g.fillStyle = `rgba(${r() < 0.5 ? '255,255,255' : '80,70,50'},${0.02 + r() * 0.03})`; g.fillRect(r() * w, r() * h, 2 + r() * 20, 1 + r() * 4); }
+    g.fillStyle = 'rgba(60,50,35,0.22)'; g.fillRect(0, h / 2 - 2, w, 2); g.fillRect(0, h - 2, w, 2);
   });
 }
 
+/** a tangent-space normal map from a drawn texture's brightness (dark = recessed): relief for the canvas façades */
+function bumpOf(src: THREE.CanvasTexture, strength = 2): THREE.CanvasTexture {
+  const key = `bump:${src.uuid}:${strength}`;
+  let t = texCache.get(key);
+  if (t) return t;
+  const c = src.image as HTMLCanvasElement, w = c.width, h = c.height;
+  const d = c.getContext('2d')!.getImageData(0, 0, w, h).data;
+  const lum = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) lum[i] = (d[4 * i] * 0.3 + d[4 * i + 1] * 0.59 + d[4 * i + 2] * 0.11) / 255;
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const og = out.getContext('2d')!, img = og.createImageData(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const nx = (lum[y * w + ((x + w - 1) % w)] - lum[y * w + ((x + 1) % w)]) * strength;
+    const ny = (lum[((y + 1) % h) * w + x] - lum[((y + h - 1) % h) * w + x]) * strength;
+    const k = 1 / Math.hypot(nx, ny, 1), i = 4 * (y * w + x);
+    img.data[i] = (nx * k * 0.5 + 0.5) * 255; img.data[i + 1] = (ny * k * 0.5 + 0.5) * 255; img.data[i + 2] = (k * 0.5 + 0.5) * 255; img.data[i + 3] = 255;
+  }
+  og.putImageData(img, 0, 0);
+  t = new THREE.CanvasTexture(out);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.NoColorSpace;
+  t.anisotropy = 8;
+  t.repeat.copy(src.repeat);
+  texCache.set(key, t);
+  return t;
+}
+/** woven cloth: a fine weave under broad stripes, drawn in greys so the material's colour tints it (1 m tile) */
+function clothTex() {
+  return canvasTex('cloth', 256, 256, [1, 1], (g, w, h) => {
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 4; i++) { g.fillStyle = 'rgba(0,0,0,0.13)'; g.fillRect(i * (w / 4), 0, w / 10, h); g.fillStyle = 'rgba(0,0,0,0.05)'; g.fillRect(i * (w / 4) + w / 7, 0, w / 40, h); }
+    g.fillStyle = 'rgba(0,0,0,0.07)';
+    for (let x = 0; x < w; x += 4) g.fillRect(x, 0, 1, h);
+    for (let y = 0; y < h; y += 4) g.fillRect(0, y, w, 1);
+    const r = rng(9);
+    for (let i = 0; i < 500; i++) { g.fillStyle = `rgba(0,0,0,${0.02 + r() * 0.05})`; g.fillRect(r() * w, r() * h, 2 + r() * 10, 1); }
+  });
+}
+/** foliage: thousands of small leaf dabs over dark gaps; `tile` is the real size of one repeat */
+function leavesTex(key: string, tile: number) {
+  return canvasTex(`leaves:${key}`, 512, 512, [tile, tile], (g, w, h) => {
+    g.fillStyle = '#2f5722'; g.fillRect(0, 0, w, h);
+    const r = rng(key.length * 19 + 7);
+    const tones = ['#4f8a34', '#3f7429', '#62a041', '#35661f', '#79b24f', '#2a531b', '#56913a'];
+    for (let i = 0; i < 9000; i++) {
+      const x = r() * w, y = r() * h, a = r() * Math.PI, l = 4 + r() * 7;
+      g.fillStyle = r() < 0.12 ? 'rgba(14,30,10,0.55)' : tones[Math.floor(r() * tones.length)];
+      g.globalAlpha = 0.55 + r() * 0.45;
+      for (const dx of [-w, 0, w]) for (const dy of [-h, 0, h]) {
+        if (x + dx < -12 || x + dx > w + 12 || y + dy < -12 || y + dy > h + 12) continue;
+        g.beginPath(); g.ellipse(x + dx, y + dy, l, l * 0.42, a, 0, 6.2832); g.fill();
+      }
+    }
+    g.globalAlpha = 1;
+  });
+}
+/** fine speckle in greys (rubber flooring, render): the material's colour tints it (1 m tile) */
+function speckleTex() {
+  return canvasTex('speckle', 256, 256, [1, 1], (g, w, h) => {
+    g.fillStyle = '#ececec'; g.fillRect(0, 0, w, h);
+    const r = rng(3);
+    for (let i = 0; i < 9000; i++) { g.fillStyle = r() < 0.6 ? `rgba(0,0,0,${0.08 + r() * 0.2})` : `rgba(255,255,255,${0.2 + r() * 0.4})`; g.fillRect(r() * w, r() * h, 1 + r() * 1.6, 1 + r() * 1.6); }
+  });
+}
+/** seconds of water time: drives every water surface's ripples and anything that floats on them */
+export const waterTime = { value: 0 };
+/** the swell at a point (m): what a floating thing rides. Local metres, a sum of three slow waves */
+export function swellAt(x: number, y: number, t = waterTime.value): number {
+  return 0.055 * Math.sin(0.31 * x + 0.9 * t) + 0.04 * Math.sin(0.23 * y - 0.7 * t + 1.3) + 0.025 * Math.sin(0.17 * (x + y) + 1.25 * t);
+}
+
 export const AMAT = {
-  grass: () => once('grass', () => new THREE.MeshStandardMaterial({ map: grassTex(), roughness: 1, color: '#e9efe2' })),
-  /** still or gently moving water: sky reflection from the environment, ripples from a scrolling normal map */
+  grass: () => once('grass', () => { const t = grassTex(); const m = new THREE.MeshStandardMaterial({ map: t, normalMap: bumpOf(t, 1.6), roughness: 1, color: '#e9efe2' }); m.normalScale.setScalar(0.7); return m; }),
+  /**
+   * water: three layers of ripples moving across each other (a broad swell, wind ripples, fine chop), calmer with
+   * distance so far water does not shimmer; the sky and the sun reflect off it by Fresnel, the body colour shows
+   * where you look straight down
+   */
   water: (color = '#1f5a63', opacity = 1) => once(`water:${color}:${opacity}`, () => {
-    const n = rippleTex();
-    const m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.06, metalness: 0.2, envMapIntensity: 1.5, normalMap: n, transparent: opacity < 1, opacity, depthWrite: opacity >= 1 });
-    m.normalScale.setScalar(0.35);
+    const m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.045, metalness: 0.05, ior: 1.33, envMapIntensity: 1.7, specularIntensity: 1, normalMap: rippleTex(), transparent: opacity < 1, opacity, depthWrite: opacity >= 1 });
+    m.normalScale.setScalar(0.55);
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uWaterTime = waterTime;
+      const maps = THREE.ShaderChunk.normal_fragment_maps.replace(
+        'vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;',
+        `vec3 mapN = texture2D( normalMap, vNormalMapUv + uWaterTime * vec2( 0.011, 0.006 ) ).xyz * 2.0 - 1.0;
+        vec3 wChop = texture2D( normalMap, vNormalMapUv * 2.9 + uWaterTime * vec2( -0.023, 0.018 ) ).xyz * 2.0 - 1.0;
+        vec3 wSwell = texture2D( normalMap, vNormalMapUv * 0.27 + uWaterTime * vec2( 0.003, -0.004 ) ).xyz * 2.0 - 1.0;
+        mapN = normalize( vec3( mapN.xy + wChop.xy * 0.55 + wSwell.xy * 1.1, mapN.z ) );
+        mapN.xy *= mix( 0.22, 1.0, 1.0 / ( 1.0 + dot( vViewPosition, vViewPosition ) * 0.00006 ) );`,
+      );
+      sh.fragmentShader = `uniform float uWaterTime;\n${sh.fragmentShader.replace('#include <normal_fragment_maps>', maps)}`
+        // deeper and darker where you look straight down, paler toward the horizon
+        .replace('#include <opaque_fragment>', `float wFres = pow( 1.0 - saturate( dot( normalize( vViewPosition ), normal ) ), 3.0 );
+        outgoingLight = mix( outgoingLight * 0.82, outgoingLight + vec3( 0.10, 0.16, 0.19 ), wFres );
+        #include <opaque_fragment>`);
+    };
     return m;
   }),
   curtain: (key: string, base: [number, number, number], fins = false) => once(`curtain:${key}`, () => new THREE.MeshPhysicalMaterial({
-    map: curtainTex(key, base, fins), roughness: fins ? 0.26 : 0.14, metalness: 0.82, envMapIntensity: 1.25, clearcoat: 0.4, clearcoatRoughness: 0.1,
+    map: curtainTex(key, base, fins), normalMap: bumpOf(curtainTex(key, base, fins), 1.2), roughness: fins ? 0.26 : 0.14, metalness: 0.82, envMapIntensity: 1.25, clearcoat: 0.4, clearcoatRoughness: 0.1,
   })),
-  arched: (key: string, wall: string) => once(`arched:${key}`, () => new THREE.MeshStandardMaterial({ map: archedTex(key, wall), roughness: 0.92 })),
-  punched: (key: string, wall: string) => once(`punched:${key}`, () => new THREE.MeshStandardMaterial({ map: punchedTex(key, wall), roughness: 0.9 })),
+  arched: (key: string, wall: string) => once(`arched:${key}`, () => new THREE.MeshStandardMaterial({ map: archedTex(key, wall), normalMap: bumpOf(archedTex(key, wall), 3), roughness: 0.92 })),
+  punched: (key: string, wall: string) => once(`punched:${key}`, () => new THREE.MeshStandardMaterial({ map: punchedTex(key, wall), normalMap: bumpOf(punchedTex(key, wall), 3), roughness: 0.9 })),
   flat: (color: string, rough = 0.85, metal = 0) => once(`flat:${color}:${rough}:${metal}`, () => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal })),
-  cloth: (color: string) => once(`cloth:${color}`, () => new THREE.MeshStandardMaterial({ color, roughness: 0.9, side: THREE.DoubleSide })),
+  cloth: (color: string) => once(`cloth:${color}`, () => new THREE.MeshStandardMaterial({ color, map: clothTex(), roughness: 0.92, side: THREE.DoubleSide })),
+  /** foliage for hedges (1.4 m tile on metre UVs) and for tree crowns (the tile repeats 5 times round a blob) */
+  leaves: (kind: 'hedge' | 'crown', tint = '#ffffff') => once(`leaves:${kind}:${tint}`, () => { const t = leavesTex(kind, kind === 'hedge' ? 1.4 : 0.2); return new THREE.MeshStandardMaterial({ map: t, normalMap: bumpOf(t, 2.5), color: tint, roughness: 0.95 }); }),
+  /** speckled rubber or render in any colour */
+  rubber: (color: string) => once(`rubber:${color}`, () => new THREE.MeshStandardMaterial({ color, map: speckleTex(), roughness: 0.96 })),
+  /** ribbed sheet-metal cladding (Poly Haven) in any colour, seen from both sides (a station vault) */
+  panels: (color: string, rough = 0.5, metal = 0.78) => once(`panels:${color}`, () => { const m = pbr('ribbed', 1.2, { tint: color, rough, metal }); m.side = THREE.DoubleSide; m.envMapIntensity = 1.1; m.color.multiplyScalar(1.25); return m; }),
   glow: (color: string, k = 1.2) => once(`glow:${color}:${k}`, () => new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: color, emissiveIntensity: k, roughness: 0.5 })),
   glass: () => once('glass', () => MAT.glassClear()),
   frame: () => once('frame', () => MAT.frame()),
   steel: () => once('steel', () => new THREE.MeshStandardMaterial({ color: '#c9ced3', roughness: 0.32, metalness: 0.9 })),
-  timber: () => once('timber', () => new THREE.MeshStandardMaterial({ color: '#6b4a2e', roughness: 0.8 })),
+  /** weathered planks (Poly Haven), warmed from grey to brown: colour factors above 1 lift the scan's dark tones */
+  timber: () => once('timber', () => { const m = pbr('planks', 1.6); m.color.setRGB(1.2, 0.8, 0.5); return m; }),
+  /** oiled decking for the pier */
+  deck: () => once('deck', () => pbr('deck', 2.2)),
+  /** the red rubber of a running track */
+  track: () => once('track', () => pbr('track', 1.5, { tint: '#f0d2c8' })),
+  /** old sandstone flags, lifted toward the souk's sand colour */
+  flagstone: () => once('flagstone', () => { const m = pbr('flagstone', 2.4); m.color.setRGB(1.75, 1.55, 1.25); return m; }),
   paving: (tint = '#e3d9c8') => once(`paving:${tint}`, () => { const m = MAT.paving(); m.color.set(tint); return m; }),
-  plaster: (tint: string) => once(`plaster:${tint}`, () => MAT.paint(tint)),
+  /** white stucco (Poly Haven) tinted to any wall colour */
+  plaster: (tint: string) => once(`plaster:${tint}`, () => { const m = pbr('stucco', 2.0, { tint }); m.color.multiplyScalar(1.18); return m; }),
   stone: (tint: string) => once(`stone:${tint}`, () => MAT.concrete(tint)),
   asphalt: () => once('asphalt', () => MAT.asphalt()),
   sand: () => once('sand', () => MAT.sand()),
@@ -202,12 +318,9 @@ export const AMAT = {
   wood: () => once('wood', () => MAT.wood()),
 };
 
-/** scrolls every water surface's ripples (one shared normal map) */
+/** advances water time: every water surface's ripples and whatever floats on them */
 export function WaterDrift() {
-  useFrame((_, dt) => {
-    const t = texCache.get('ripple');
-    if (t) { t.offset.x += Math.min(dt, 0.1) * 0.012; t.offset.y += Math.min(dt, 0.1) * 0.007; }
-  });
+  useFrame((_, dt) => { waterTime.value += Math.min(dt, 0.1); });
   return null;
 }
 
@@ -324,7 +437,7 @@ export function Railing({ pts, h = 1.1, every = 2, fill = 'glass', closed = fals
 
 /** a clipped hedge along a polyline: the park's boundary */
 export function Hedge({ pts, h = 1.3, w = 1.1 }: { pts: Vec2[]; h?: number; w?: number }) {
-  const m = AMAT.flat('#3f6a2e', 1);
+  const m = AMAT.leaves('hedge');
   return (
     <>
       {pts.slice(0, -1).map((a, i) => {
@@ -369,18 +482,48 @@ export function Mast({ id, at, h, az }: { id: AreaId; at: Vec2; h: number; az: n
   return <P id={id} name="tower_monopole" at={at} h={0} rotY={(-az * Math.PI) / 180} scale={h / 30} />;
 }
 
-/** a small shade tree: a trunk and a crown of the Poly Haven scrub pieces, scaled up */
-export function Tree({ id, at, i = 0, s = 1 }: { id: AreaId; at: Vec2; i?: number; s?: number }) {
-  const trunk = AMAT.flat('#6a5540', 0.95);
-  const hT = 2.3 * s;
+/** a lumpy ball of foliage: an icosphere pushed in and out by a few sines (three shapes, shared) */
+const blobCache: THREE.BufferGeometry[] = [];
+function blobGeo(k: number): THREE.BufferGeometry {
+  const i = ((k % 3) + 3) % 3;
+  if (blobCache[i]) return blobCache[i];
+  const g = new THREE.IcosahedronGeometry(1, 3);
+  const pos = g.attributes.position as THREE.BufferAttribute, v = new THREE.Vector3();
+  for (let n = 0; n < pos.count; n++) {
+    v.fromBufferAttribute(pos, n);
+    const d = 1 + 0.16 * Math.sin(v.x * 4.1 + i * 2.1) * Math.cos(v.z * 3.7 + i) + 0.1 * Math.sin(v.y * 6.3 + v.x * 2.2 + i * 1.7) + 0.06 * Math.sin((v.x + v.y + v.z) * 9.1);
+    v.multiplyScalar(d);
+    pos.setXYZ(n, v.x, v.y * 0.86, v.z);
+  }
+  // smooth shading: the normal of the ball it was made from, not of each facet
+  const nor = g.attributes.normal as THREE.BufferAttribute;
+  for (let n = 0; n < pos.count; n++) { v.fromBufferAttribute(pos, n).normalize(); nor.setXYZ(n, v.x, v.y, v.z); }
+  return (blobCache[i] = g);
+}
+const CROWN = ['#ffffff', '#e6f0d2', '#f4ecc8', '#d8ecd0'];
+/** a shade tree: a trunk that forks, under a crown of five masses of leaves */
+export function Tree({ at, i = 0, s = 1 }: { id?: AreaId; at: Vec2; i?: number; s?: number }) {
+  const trunk = AMAT.timber(), leaf = AMAT.leaves('crown', CROWN[i % CROWN.length]);
+  const hT = 2.5 * s;
+  const lobes = useMemo(() => [0, 1, 2, 3].map((k) => { const a = i * 1.7 + (k * Math.PI) / 2; return { a, d: (1.0 + ((i + k) % 3) * 0.18) * s, y: hT + (0.5 + ((i * 3 + k) % 4) * 0.22) * s, r: (1.25 + ((i + k * 2) % 3) * 0.2) * s }; }), [i, s, hT]);
   return (
-    <>
-      <Cyl at={at} r={0.16 * s} r2={0.11 * s} h={hT} mat={trunk} seg={8} />
-      {[0, 1, 2].map((k) => {
-        const a = i * 1.7 + (k * 2 * Math.PI) / 3;
-        return <P key={k} id={id} name="ph_bush" part={`piece_${(i + k) % 5}`} at={[at[0] + Math.cos(a) * 0.7 * s, at[1] + Math.sin(a) * 0.7 * s]} h={hT - 0.5 * s + k * 0.25 * s} rotY={a} scale={(3.6 + ((i + k) % 3) * 0.5) * s} />;
-      })}
-    </>
+    <group position={[at[0], 0, -at[1]]} rotation-y={i * 0.9}>
+      <mesh position-y={hT / 2} material={trunk} castShadow><cylinderGeometry args={[0.11 * s, 0.19 * s, hT, 9]} /></mesh>
+      {[-1, 1].map((d) => <mesh key={d} position={[d * 0.42 * s, hT + 0.25 * s, 0]} rotation-z={-d * 0.75} material={trunk} castShadow><cylinderGeometry args={[0.05 * s, 0.09 * s, 1.3 * s, 7]} /></mesh>)}
+      <mesh position-y={hT + 1.45 * s} scale={1.75 * s} geometry={blobGeo(i)} material={leaf} castShadow receiveShadow />
+      {lobes.map((l, k) => <mesh key={k} position={[Math.cos(l.a) * l.d, l.y, Math.sin(l.a) * l.d]} rotation-y={l.a} scale={l.r} geometry={blobGeo(i + k + 1)} material={leaf} castShadow receiveShadow />)}
+    </group>
+  );
+}
+/** a clipped shrub: two or three low masses of leaves */
+export function Shrub({ at, i = 0, s = 1 }: { at: Vec2; i?: number; s?: number }) {
+  const leaf = AMAT.leaves('crown', CROWN[(i + 1) % CROWN.length]);
+  return (
+    <group position={[at[0], 0, -at[1]]} rotation-y={i * 2.1}>
+      <mesh position-y={0.42 * s} scale={[0.75 * s, 0.6 * s, 0.75 * s]} geometry={blobGeo(i)} material={leaf} castShadow receiveShadow />
+      <mesh position={[0.55 * s, 0.3 * s, 0.15 * s]} scale={[0.5 * s, 0.42 * s, 0.5 * s]} geometry={blobGeo(i + 1)} material={leaf} castShadow receiveShadow />
+      {i % 2 === 0 && <mesh position={[-0.4 * s, 0.26 * s, -0.35 * s]} scale={[0.42 * s, 0.36 * s, 0.42 * s]} geometry={blobGeo(i + 2)} material={leaf} castShadow receiveShadow />}
+    </group>
   );
 }
 
@@ -397,24 +540,49 @@ export function Awning({ at, w, depth = 1.6, h = 2.9, face, color }: { at: Vec2;
   );
 }
 
-/** fountain jets that rise and fall in a travelling wave (scene only) */
-export function Jets({ pts, height, r = 0.22, speed = 0.9, phase = 0.45 }: { pts: Vec2[]; height: number; r?: number; speed?: number; phase?: number }) {
-  const ref = useRef<THREE.InstancedMesh>(null);
-  const geo = useMemo(() => new THREE.CylinderGeometry(r * 0.35, r, 1, 8, 1, true).translate(0, 0.5, 0), [r]);
-  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#f4fbff', emissive: '#cfe9f5', emissiveIntensity: 0.25, roughness: 0.3, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide }), []);
-  const t = useRef(0);
+const G = 9.81;
+const hash = (a: number, b: number, c: number) => { const v = Math.sin(a * 12.9898 + b * 78.233 + c * 37.719) * 43758.5453; return v - Math.floor(v); };
+/**
+ * Fountain jets that rise and fall in a travelling wave (scene only). Each jet is a slim core of water plus drops
+ * thrown up at the speed that reaches the jet's height at that moment (v = √(2gh)), which then rise, slow, spread
+ * and fall back under gravity: a tall jet takes seconds to come down, a small one splashes at once.
+ */
+export function Jets({ pts, height, r = 0.22, speed = 0.9, phase = 0.45, drops = 22 }: { pts: Vec2[]; height: number; r?: number; speed?: number; phase?: number; drops?: number }) {
+  const core = useRef<THREE.InstancedMesh>(null), spray = useRef<THREE.InstancedMesh>(null);
+  const geo = useMemo(() => new THREE.CylinderGeometry(r * 0.3, r * 0.8, 1, 8, 1, true).translate(0, 0.5, 0), [r]);
+  const dropGeo = useMemo(() => new THREE.IcosahedronGeometry(1, 1), []);
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#f4fbff', emissive: '#cfe9f5', emissiveIntensity: 0.25, roughness: 0.3, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide }), []);
+  const dropMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#d8eef8', emissiveIntensity: 0.35, roughness: 0.25, transparent: true, opacity: 0.42, depthWrite: false }), []);
   const m = useMemo(() => new THREE.Matrix4(), []);
-  useFrame((_, dt) => {
-    const im = ref.current;
-    if (!im) return;
-    t.current += Math.min(dt, 0.1);
+  /** how high jet i is throwing at time t, as a fraction of `height` */
+  const frac = (i: number, t: number) => { const s = 0.5 + 0.5 * Math.sin(t * speed - i * phase); return 0.15 + 0.85 * s * s; };
+  const T = 2 * Math.sqrt((2 * height) / G); // the longest flight: up to full height and back
+  useFrame(() => {
+    const a = core.current, b = spray.current;
+    if (!a || !b) return;
+    const t = waterTime.value + 100;
     pts.forEach((p, i) => {
-      const s = 0.5 + 0.5 * Math.sin(t.current * speed - i * phase);
-      const hgt = Math.max(0.05, height * (0.15 + 0.85 * s * s));
-      m.makeScale(1 + 0.6 * (1 - s), hgt, 1 + 0.6 * (1 - s)).setPosition(p[0], 0, -p[1]);
-      im.setMatrixAt(i, m);
+      const f = frac(i, t);
+      m.makeScale(1 + 0.5 * (1 - f), Math.max(0.05, height * f * 0.9), 1 + 0.5 * (1 - f)).setPosition(p[0], 0, -p[1]);
+      a.setMatrixAt(i, m);
+      for (let k = 0; k < drops; k++) {
+        const off = (k / drops) * T + i * 0.37, n = Math.floor((t - off) / T), age = t - (n * T + off);
+        const v0 = Math.sqrt(2 * G * height * frac(i, n * T + off)), flight = (2 * v0) / G;
+        if (age >= flight) { m.makeScale(0, 0, 0); b.setMatrixAt(i * drops + k, m); continue; }
+        const y = v0 * age - 0.5 * G * age * age, vy = v0 - G * age;
+        const dir = hash(i, k, n) * 6.2832, out = 0.022 * v0 * (0.25 + hash(k, n, i)) * age, u = age / flight;
+        const sz = r * (0.2 + 0.5 * u);
+        m.makeScale(sz, sz * (1.6 + Math.min(5, Math.abs(vy) * 0.22)), sz).setPosition(p[0] + Math.cos(dir) * out, y, -p[1] + Math.sin(dir) * out);
+        b.setMatrixAt(i * drops + k, m);
+      }
     });
-    im.instanceMatrix.needsUpdate = true;
+    a.instanceMatrix.needsUpdate = true;
+    b.instanceMatrix.needsUpdate = true;
   });
-  return <instancedMesh ref={ref} args={[geo, mat, pts.length]} frustumCulled={false} />;
+  return (
+    <>
+      <instancedMesh ref={core} args={[geo, mat, pts.length]} frustumCulled={false} />
+      <instancedMesh ref={spray} args={[dropGeo, dropMat, pts.length * drops]} frustumCulled={false} />
+    </>
+  );
 }

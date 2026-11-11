@@ -150,8 +150,8 @@ export function Downtown() {
       {/* the railing along the lake, round the pier and its deck, and across both ends of the walk */}
       <Railing pts={railPts.west} />
       {railPts.ends.map((p, i) => <Railing key={i} pts={p} fill="bars" />)}
-      <Box at={[(D.pier.x0 + D.pier.x1) / 2, (D.pier.y0 + D.pier.y1) / 2]} size={[D.pier.x1 - D.pier.x0, D.pier.y1 - D.pier.y0, 0.24]} z0={-0.22} mat={AMAT.wood()} />
-      <Box at={[(D.deck.x0 + D.deck.x1) / 2, (D.deck.y0 + D.deck.y1) / 2]} size={[D.deck.x1 - D.deck.x0, D.deck.y1 - D.deck.y0, 0.24]} z0={-0.22} mat={AMAT.wood()} />
+      <Box at={[(D.pier.x0 + D.pier.x1) / 2, (D.pier.y0 + D.pier.y1) / 2]} size={[D.pier.x1 - D.pier.x0, D.pier.y1 - D.pier.y0, 0.24]} z0={-0.22} mat={AMAT.deck()} />
+      <Box at={[(D.deck.x0 + D.deck.x1) / 2, (D.deck.y0 + D.deck.y1) / 2]} size={[D.deck.x1 - D.deck.x0, D.deck.y1 - D.deck.y0, 0.24]} z0={-0.22} mat={AMAT.deck()} />
       {[14, 24, 34, 44, 54, 66].flatMap((y) => [D.pier.x0 + 0.4, D.pier.x1 - 0.4].map((x) => <Cyl key={`pile${x}-${y}`} at={[x + (y > 52 ? (x < 60 ? -6 : 6) : 0), y]} r={0.2} h={1.4} z0={WATER - 0.8} mat={AMAT.timber()} seg={10} shadow={false} />))}
       <P id={ID} name="bench" at={[60, 66.2]} face={180} />
       {[[52.5, 54.5], [67.5, 54.5]].map(([x, y], i) => <P key={`dp${i}`} id={ID} name="ph_planter" at={[x, y]} face={90} />)}

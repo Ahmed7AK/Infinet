@@ -1,6 +1,7 @@
 /**
  * Fetch the CC0 Poly Haven HDRIs, PBR textures and 3D models the realistic renderer uses (plan §11, §12).
  *   npx tsx tools/assets/fetch-polyhaven.ts
+ *   npx tsx tools/assets/fetch-polyhaven.ts --textures=planks,deck   (only these texture sets; no skies or models)
  * Raw downloads go to assets-src/downloads/ (not shipped); the used maps are copied into public/hdri and public/textures.
  * Models (1k glTF) are converted to GLB by tools/blender/import_polyhaven.py, which reads MODELS below from models.json.
  * Every asset is CC0 (polyhaven.com/license). Listed in CREDITS.md.
@@ -21,6 +22,15 @@ const TEXTURES: Array<{ id: string; res: string; as: string }> = [
   { id: 'coast_sand_01', res: '2k', as: 'sand' },
   { id: 'painted_plaster_wall', res: '1k', as: 'paint' },
   { id: 'concrete_floor_02', res: '1k', as: 'concrete' },
+  // the park, Downtown, the metro station and the old souk (11 Nov)
+  { id: 'brown_planks_03', res: '1k', as: 'planks' },
+  { id: 'wood_floor_deck', res: '1k', as: 'deck' },
+  { id: 'rubberized_track', res: '1k', as: 'track' },
+  { id: 'white_stucco', res: '1k', as: 'stucco' },
+  { id: 'corrugated_iron', res: '1k', as: 'ribbed' },
+  { id: 'red_sandstone_pavement', res: '1k', as: 'flagstone' },
+  // (leafy_grass, clay_plaster, metal_plate and large_sandstone_blocks were tried and dropped: dead leaves in the
+  // lawn, too dark to tint, rusty, and a ledge that shows when tiled)
 ];
 /** Poly Haven model → our GLB name and a triangle budget (the importer decimates anything above it). */
 // drop: object names containing this are left out (sets that ship a clean and a weathered copy side by side)
@@ -122,7 +132,8 @@ async function get(url: string, to: string) {
 const files = async (id: string) => (await (await fetch(`https://api.polyhaven.com/files/${id}`)).json()) as any;
 
 const credits: string[] = [];
-for (const h of HDRIS) {
+const ONLY = process.argv.find((a) => a.startsWith('--textures='))?.slice(11).split(',');
+for (const h of ONLY ? [] : HDRIS) {
   const f = await files(h.id);
   const url = f.hdri[h.res].hdr.url as string;
   const raw = join(DL, 'hdri', `${h.id}_${h.res}.hdr`);
@@ -131,7 +142,7 @@ for (const h of HDRIS) {
   copyFileSync(raw, `public/hdri/${h.as}.hdr`);
   credits.push(`| public/hdri/${h.as}.hdr | Poly Haven \`${h.id}\` (${h.res}) | CC0 | https://polyhaven.com/a/${h.id} |`);
 }
-for (const t of TEXTURES) {
+for (const t of TEXTURES.filter((x) => !ONLY || ONLY.includes(x.as))) {
   const f = await files(t.id);
   for (const [key, short] of Object.entries(MAPS)) {
     const m = f[key]?.[t.res]?.jpg ?? f[key]?.[t.res]?.png;
@@ -145,7 +156,7 @@ for (const t of TEXTURES) {
   credits.push(`| public/textures/${t.as}/ | Poly Haven \`${t.id}\` (${t.res}) | CC0 | https://polyhaven.com/a/${t.id} |`);
 }
 const modelDir = join(DL, 'models');
-for (const m of MODELS) {
+for (const m of ONLY ? [] : MODELS) {
   const f = await files(m.id);
   const g = f.gltf[MODEL_RES].gltf;
   const dir = join(modelDir, m.id);
@@ -153,6 +164,6 @@ for (const m of MODELS) {
   for (const [rel, inc] of Object.entries(g.include as Record<string, { url: string }>)) await get(inc.url, join(dir, rel));
   credits.push(`| public/models/${m.as}.glb | Poly Haven \`${m.id}\` (${MODEL_RES}) | CC0 | https://polyhaven.com/a/${m.id} |`);
 }
-writeFileSync(join(modelDir, 'models.json'), JSON.stringify(MODELS.map((m) => ({ ...m, gltf: join(m.id, `${m.id}.gltf`) })), null, 1));
+if (!ONLY) writeFileSync(join(modelDir, 'models.json'), JSON.stringify(MODELS.map((m) => ({ ...m, gltf: join(m.id, `${m.id}.gltf`) })), null, 1));
 
 console.log('\nCREDITS rows:\n' + credits.join('\n'));

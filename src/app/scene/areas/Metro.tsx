@@ -21,7 +21,7 @@ function vaultGeo(x0: number, x1: number, r: number, rise: number, n = 32): THRE
   for (let i = 0; i <= n; i++) {
     const th = (i / n) * Math.PI, y = CY + Math.cos(th) * r, z = WALL_H + Math.sin(th) * rise;
     pos.push(x0, z, -y, x1, z, -y);
-    uv.push(0, (i / n) * 60, x1 - x0, (i / n) * 60);
+    uv.push(x0, (i / n) * 60, x1, (i / n) * 60);
     if (i < n) { const k = 2 * i; idx.push(k, k + 1, k + 2, k + 2, k + 1, k + 3); }
   }
   const g = new THREE.BufferGeometry();
@@ -79,13 +79,12 @@ function Shell() {
     })(),
   }), []);
   const mats = useMemo(() => ({
-    skin: new THREE.MeshStandardMaterial({ color: '#c9ae70', roughness: 0.36, metalness: 0.78, side: THREE.DoubleSide, envMapIntensity: 1.1 }),
     rib: new THREE.MeshStandardMaterial({ color: '#f1ece0', roughness: 0.6, side: THREE.DoubleSide }),
     gable: new THREE.MeshPhysicalMaterial({ color: '#7f9aa6', roughness: 0.1, metalness: 0.5, transparent: true, opacity: 0.72, side: THREE.DoubleSide, envMapIntensity: 1.3 }),
   }), []);
   return (
     <HideInVision>
-      <mesh geometry={g.skin} material={mats.skin} castShadow receiveShadow />
+      <mesh geometry={g.skin} material={AMAT.panels('#c9ae70')} castShadow receiveShadow />
       {g.ribs.map((r, i) => <mesh key={i} geometry={r} material={mats.rib} />)}
       {[ST.x0, ST.x1].map((x) => <mesh key={x} position={[x, WALL_H, -CY]} rotation-y={Math.PI / 2} geometry={g.gable} material={mats.gable} />)}
       {/* light lines along the vault */}

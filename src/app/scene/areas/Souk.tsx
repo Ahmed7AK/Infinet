@@ -4,10 +4,11 @@
  * quay with wooden boats. Its networks are three old shop routers (WPA-TKIP, WEP, WPA2/3 transition), one sound
  * public Wi-Fi, a look-alike in someone's bag, and a 4G mast. Geometry from src/engine/world/areas.ts (SOUK).
  */
-import { useMemo, type JSX } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { useMemo, useRef, type JSX } from 'react';
 import * as THREE from 'three';
 import { LAYOUT, SOUK, type Vec2 } from '../../../engine/index';
-import { AMAT, Area, Awning, Block, Box, boxGeo, Cyl, Ground, HideInVision, L3, Mast, P, Palm, Railing, rectPoly, rng, WaterDrift } from './kit';
+import { AMAT, Area, Awning, Block, Box, boxGeo, Cyl, Ground, HideInVision, L3, Mast, P, Palm, Railing, rectPoly, rng, swellAt, WaterDrift, waterTime } from './kit';
 
 const ID = 'souk' as const;
 const S = SOUK;
@@ -39,10 +40,29 @@ function WindTower({ at, z0, s = 1 }: { at: Vec2; z0: number; s?: number }) {
   );
 }
 
-/** a wooden creek boat with a cloth canopy */
-function Boat({ at, rot = 0 }: { at: Vec2; rot?: number }) {
+/**
+ * a wooden creek boat with a cloth canopy. It floats: it rises and falls with the swell under the hull, and pitches
+ * and rolls with the swell's slope along and across it. With `sail` it also crosses the creek and back.
+ */
+function Boat({ at, rot = 0, sail }: { at: Vec2; rot?: number; sail?: { to: Vec2; speed: number } }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    const g = ref.current;
+    if (!g) return;
+    let x = at[0], y = at[1], yaw = rot;
+    if (sail) {
+      const dx = sail.to[0] - at[0], dy = sail.to[1] - at[1], L = Math.hypot(dx, dy);
+      const u = (waterTime.value * sail.speed + L * 0.3) % (2 * L), f = u < L ? u / L : 2 - u / L;
+      x += dx * f; y += dy * f;
+      yaw = Math.atan2(dy, dx) + (u < L ? 0 : Math.PI);
+    }
+    const c = Math.cos(yaw), s = Math.sin(yaw), h0 = swellAt(x, y);
+    g.position.set(x, WATER + h0 * 1.6, -y);
+    g.rotation.order = 'YXZ';
+    g.rotation.set(Math.atan2((swellAt(x - s * 1.2, y + c * 1.2) - h0) * 2.5, 1.2), yaw, Math.atan2((swellAt(x + c * 3.5, y + s * 3.5) - h0) * 2.5, 3.5));
+  });
   return (
-    <group position={L3(at[0], at[1], WATER)} rotation-y={rot}>
+    <group ref={ref} position={L3(at[0], at[1], WATER)} rotation-y={rot}>
       <mesh position-y={0.25} geometry={boxGeo(8.4, 0.8, 2.5)} material={AMAT.timber()} castShadow />
       <mesh position={[4.7, 0.42, 0]} rotation-z={0.35} geometry={boxGeo(1.8, 0.6, 1.9)} material={AMAT.timber()} castShadow />
       <mesh position={[-4.6, 0.38, 0]} rotation-z={-0.3} geometry={boxGeo(1.5, 0.6, 2.0)} material={AMAT.timber()} castShadow />
@@ -100,6 +120,30 @@ function bay(key: string, at: Vec2, face: number, i: number, r: () => number): J
   return out;
 }
 
+/**
+ * the alleys' lanterns: each hangs on a 35 cm cord and swings as a pendulum (period 2π√(L/g) ≈ 1.2 s), pushed by a
+ * breeze that comes and goes along the alley
+ */
+function Lanterns({ at }: { at: Array<[number, number, number]> }) {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const geo = useMemo(() => new THREE.SphereGeometry(0.13, 10, 8), []);
+  const m = useMemo(() => new THREE.Matrix4(), []);
+  const CORD = 0.35, W = Math.sqrt(9.81 / CORD);
+  useFrame(() => {
+    const im = ref.current;
+    if (!im) return;
+    const t = waterTime.value;
+    at.forEach(([x, y, h], i) => {
+      const gust = 0.04 + 0.1 * (0.5 + 0.5 * Math.sin(t * 0.35 + y * 0.05 + x * 0.03));
+      const th = gust * Math.sin(W * t + i * 1.7), d = Math.sin(th) * CORD, ns = Math.abs(x) < 2.5;
+      m.makeTranslation(x + (ns ? 0 : d), h + CORD - Math.cos(th) * CORD, -(y + (ns ? d : 0)));
+      im.setMatrixAt(i, m);
+    });
+    im.instanceMatrix.needsUpdate = true;
+  });
+  return <instancedMesh ref={ref} args={[geo, AMAT.glow('#ffc070', 1.7), at.length]} frustumCulled={false} />;
+}
+
 export function Souk() {
   const mast = LAYOUT.transmitters.find((t) => t.id === 'cellA-souk')!;
 
@@ -132,9 +176,7 @@ export function Souk() {
     const lamps: Array<[number, number, number]> = [];
     for (let y = -57; y <= 39; y += 6) for (let k = 0; k < 4; k++) lamps.push([-1.65 + k * 1.1, y, 4.35 - 0.28 * Math.sin((k / 3) * Math.PI)]);
     for (let x = -29; x <= 29; x += 6) if (Math.abs(x) > 4) for (let k = 0; k < 4; k++) lamps.push([x, -1.65 + k * 1.1, 4.35 - 0.28 * Math.sin((k / 3) * Math.PI)]);
-    const lanterns = new THREE.InstancedMesh(new THREE.SphereGeometry(0.13, 10, 8), AMAT.glow('#ffc070', 1.7), lamps.length);
-    lamps.forEach(([x, y, h], i) => lanterns.setMatrixAt(i, m.makeTranslation(x, h, -y)));
-    return { slatsNS, slatsEW, lanterns };
+    return { slatsNS, slatsEW, lamps };
   }, []);
 
   const beams = useMemo(() => {
@@ -171,9 +213,9 @@ export function Souk() {
       <Ground poly={rectPoly(-900, 250, 900, 1100)} y={-0.03} mat={AMAT.sand()} />
       <Ground poly={rectPoly(-900, S.quay.y1, 900, 250)} y={WATER} mat={AMAT.water('#2f6f72')} />
       <Box at={[0, S.quay.y1 + 0.25]} size={[1200, 0.5, 0.7]} z0={WATER - 0.1} mat={AMAT.stone('#b9a888')} shadow={false} />
-      <Ground poly={rectPoly(-A, -62, A, S.quay.y0)} y={0.012} mat={AMAT.paving('#d9c8a6')} />
-      <Ground poly={rectPoly(-32, -A, 32, A)} y={0.013} mat={AMAT.paving('#d9c8a6')} />
-      <Ground poly={rectPoly(-120, S.quay.y0, 120, S.quay.y1)} y={0.012} mat={AMAT.paving('#cdb994')} />
+      <Ground poly={rectPoly(-A, -62, A, S.quay.y0)} y={0.012} mat={AMAT.flagstone()} />
+      <Ground poly={rectPoly(-32, -A, 32, A)} y={0.013} mat={AMAT.flagstone()} />
+      <Ground poly={rectPoly(-120, S.quay.y0, 120, S.quay.y1)} y={0.012} mat={AMAT.flagstone()} />
       <Ground poly={rectPoly(-70, -96, 70, -62)} y={0.012} mat={AMAT.paving('#decfb0')} />
       <Ground poly={rectPoly(-260, -112, 260, -100)} y={-0.01} mat={AMAT.asphalt()} />
 
@@ -194,7 +236,7 @@ export function Souk() {
         <primitive object={roof.slatsEW} />
         {beams}
       </HideInVision>
-      <primitive object={roof.lanterns} />
+      <Lanterns at={roof.lamps} />
 
       {/* the networks: three old shop routers on the walls, the public Wi-Fi at the crossing, the look-alike in a bag */}
       <P id={ID} name="ap_cafe" at={[S.spice[0], S.spice[1]]} h={S.spice[2]} face={90} />
@@ -212,8 +254,9 @@ export function Souk() {
       {[-15, 15].map((x, i) => <P key={`qd${i}`} id={ID} name="ph_drum" at={[x, S.quay.y1 - 0.9]} rotY={i} />)}
       <Boat at={[-14, S.quay.y1 + 3.4]} />
       <Boat at={[16, S.quay.y1 + 3.8]} rot={0.06} />
-      <Boat at={[60, 120]} rot={0.5} />
-      <Boat at={[-80, 150]} rot={-0.3} />
+      <Boat at={[-150, 96]} sail={{ to: [150, 150], speed: 2.2 }} />
+      <Boat at={[120, 200]} sail={{ to: [-170, 176], speed: 1.7 }} />
+      <Boat at={[-60, 228]} rot={0.2} />
 
       {/* the square at the south gate, the mast, and the old quarter on every side and across the creek */}
       {[[-14, -70], [14, -70], [-30, -86], [30, -86], [-52, -72], [52, -72]].map(([x, y], i) => <Palm key={`sp${i}`} id={ID} at={[x, y]} i={i} />)}

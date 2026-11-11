@@ -6,7 +6,7 @@
 import { useMemo, type JSX } from 'react';
 import * as THREE from 'three';
 import { LAYOUT, PARK, type Vec2 } from '../../../engine/index';
-import { AMAT, Area, Awning, bandGeo, Block, Box, boxGeo, ellipsePoly, Ground, Hedge, Jets, L3, Lamp, Mast, P, Palm, rectPoly, ribbonGeo, rng, smooth, Tree, WaterDrift } from './kit';
+import { AMAT, Area, Awning, bandGeo, Block, Box, boxGeo, ellipsePoly, Ground, Hedge, Jets, L3, Lamp, Mast, P, Palm, rectPoly, ribbonGeo, rng, Shrub, smooth, Tree, WaterDrift } from './kit';
 
 const ID = 'park' as const;
 const K = PARK;
@@ -51,7 +51,7 @@ function Sails({ at }: { at: Vec2 }) {
   const cols = ['#d8b26a', '#c96f4a', '#e8dcc0'];
   return (
     <group position={L3(at[0], at[1])}>
-      <mesh position-y={0.012} rotation-x={-Math.PI / 2} material={AMAT.flat('#3f7f8c', 0.95)} receiveShadow><circleGeometry args={[8.5, 40]} /></mesh>
+      <mesh position-y={0.012} rotation-x={-Math.PI / 2} material={AMAT.rubber('#3f8794')} receiveShadow><circleGeometry args={[8.5, 40]} /></mesh>
       {geo.map((g, i) => <mesh key={i} geometry={g} material={AMAT.cloth(cols[i])} castShadow receiveShadow />)}
       {[[-6, 4.6, -5], [6, 3.4, -5.5], [6.5, 4.8, 5], [-6, 3.2, 5.5]].map(([x, h, z], i) => (
         <mesh key={i} position={[x, h / 2, z]} material={AMAT.steel()} castShadow><cylinderGeometry args={[0.07, 0.09, h, 10]} /></mesh>
@@ -173,7 +173,7 @@ export function Park() {
       <Ground poly={ellipsePoly(K.plaza.at[0], K.plaza.at[1], K.plaza.r, K.plaza.r, 40)} y={0.019} mat={AMAT.paving('#eadfcd')} />
       <mesh geometry={g.pondWalk} material={AMAT.paving('#e6dccb')} receiveShadow />
       {g.paths.map((pg, i) => <mesh key={i} geometry={pg} material={AMAT.paving('#e2d6c2')} receiveShadow />)}
-      <mesh geometry={g.track} material={AMAT.flat('#a4472f', 0.96)} receiveShadow />
+      <mesh geometry={g.track} material={AMAT.track()} receiveShadow />
       <mesh geometry={g.trackLine} material={AMAT.flat('#efe9dc', 0.8)} />
 
       {/* the pond: water inside a stone rim, a low fountain */}
@@ -198,7 +198,7 @@ export function Park() {
       {els}
       {scatter.trees.map((p, i) => <Tree key={`t${i}`} id={ID} at={p} i={i} s={0.9 + (i % 4) * 0.12} />)}
       {scatter.palms.map((p, i) => <Palm key={`sp${i}`} id={ID} at={p} i={i + 40} s={0.85 + (i % 3) * 0.1} />)}
-      {scatter.shrubs.map((p, i) => <P key={`s${i}`} id={ID} name="ph_bush" part={`piece_${i % 5}`} at={p} h={-0.02} rotY={i * 2.1} scale={1.6 + (i % 4) * 0.4} />)}
+      {scatter.shrubs.map((p, i) => <Shrub key={`s${i}`} at={p} i={i} s={1 + (i % 4) * 0.22} />)}
 
       {/* the kiosk and its tables */}
       <Box at={[(K.kiosk.x0 + K.kiosk.x1) / 2, (K.kiosk.y0 + K.kiosk.y1) / 2]} size={[K.kiosk.x1 - K.kiosk.x0, K.kiosk.y1 - K.kiosk.y0, K.kiosk.h]} mat={AMAT.plaster('#efe6d6')} />
