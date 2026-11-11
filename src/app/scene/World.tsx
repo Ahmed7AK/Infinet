@@ -23,7 +23,11 @@ import { camOccluders, NET_LAYER, visionK } from './vision';
 import { SceneMounted } from '../ui/Loader';
 
 // ───────────── sky and sun per scenario (midday in the city, low golden sun at the desert site) ─────────────
-interface Sky { hdr: string; sunAzDeg: number; sun: number; env: number; fog: number; bg: number; /** under a roof: no sun or sun shadows, except in Vision, where the roof lifts away */ indoor?: boolean }
+interface Sky {
+  hdr: string; sunAzDeg: number; sun: number; env: number; fog: number; bg: number;
+  /** under a roof: no sun or sun shadows, except in Vision, where the roof lifts away */ indoor?: boolean;
+  /** half-width of the sun's shadow box round the player (m, default 45): wider where one big roof must shade a long room */ shadowHalf?: number;
+}
 /** overall exposure: scales sun, sky light and background together */
 const EXPOSURE = 0.75;
 const SKY: Record<Playable, Sky> = {
@@ -33,6 +37,12 @@ const SKY: Record<Playable, Sky> = {
   'desert-sat': { hdr: '/hdri/golden.hdr', sunAzDeg: 252, sun: 1.2, env: 1.0, fog: 0.00042, bg: 1.0 },
   // indoors: the roof keeps the sun out; the hall's own lights (scene/Hall.tsx) and a dimmed sky light it
   'venue-hall': { hdr: '/hdri/midday.hdr', sunAzDeg: 200, sun: 0.6, env: 0.55, fog: 0.0012, bg: 0.6, indoor: true },
+  // the four places added on 11 Nov: late-morning light in the park, a low golden sun on Downtown's glass, the sun
+  // from the south-south-west on the station's front, and straight down the souk's alley so its roof slats stripe the floor
+  'park-walk': { hdr: '/hdri/midday.hdr', sunAzDeg: 140, sun: 1.0, env: 1.0, fog: 0.0007, bg: 1.0 },
+  'downtown-walk': { hdr: '/hdri/golden.hdr', sunAzDeg: 262, sun: 1.2, env: 1.0, fog: 0.00028, bg: 1.0 },
+  'metro-station': { hdr: '/hdri/midday.hdr', sunAzDeg: 212, sun: 1.0, env: 0.9, fog: 0.0007, bg: 1.0, shadowHalf: 80 },
+  'souk-alley': { hdr: '/hdri/midday.hdr', sunAzDeg: 186, sun: 1.05, env: 0.9, fog: 0.0009, bg: 1.0 },
 };
 
 
@@ -133,6 +143,8 @@ function SkyAndSun() {
     scene.environmentIntensity = c.sky.env * EXPOSURE * dim;
     scene.backgroundIntensity = c.sky.bg * EXPOSURE * (1 - 0.7 * visionK.v);
     L.intensity = Math.max(1.2, c.l.sunE * c.sky.sun) * EXPOSURE * dim * (c.sky.indoor ? visionK.v : 1);
+    const half = c.sky.shadowHalf ?? 45, cam = L.shadow.camera;
+    if (cam.right !== half) { cam.left = cam.bottom = -half; cam.right = cam.top = half; cam.updateProjectionMatrix(); }
     const [px, py] = driver.snap.player.pos;
     const tgt = new THREE.Vector3(px, 0, -py);
     L.target.position.copy(tgt);
@@ -315,20 +327,23 @@ function CameraRig() {
     const v = visionK.v;
     const desert = s.zone === 'desert';
     const dist = THREE.MathUtils.lerp(3.6, 10, v), shoulder = THREE.MathUtils.lerp(0.55, 0, v);
-    const pitch = THREE.MathUtils.lerp(desert ? 0.06 : 0.16, desert ? 0.12 : 0.5, v) + driver.look.pitch;
+    // Downtown: a lower camera that aims higher, so the tower across the lake is in the picture (not in Vision);
+    // dragging down past level tips the view further up
+    const hero = s.zone === 'downtown' ? 1 - v : 0;
+    const pitch = THREE.MathUtils.lerp(desert ? 0.06 : 0.16, desert ? 0.12 : 0.5, v) + driver.look.pitch - 0.2 * hero;
     const pivot = new THREE.Vector3(px, 1.55, -py);
     const fwd = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
     const right = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw));
     const back = fwd.clone().multiplyScalar(-Math.cos(pitch) * dist);
     let want = pivot.clone().add(back).addScaledVector(right, shoulder);
-    want.y = pivot.y + Math.sin(pitch) * dist + 0.25;
+    want.y = Math.max(0.35, pivot.y + Math.sin(pitch) * dist + 0.25);
     // collide the boom with walls and buildings (2D, by height)
     const t = firstHit([px, py], [want.x, -want.z], want.y);
     if (t < 1) want = pivot.clone().lerp(want, Math.max(0.15, t - 0.12 / dist));
     // under a ceiling, stay under it (Network Vision cuts the ceilings away instead)
     if (v < 0.5 && ROOFED.some((b) => pointInPoly([px, py], b.poly as Vec2[]))) want.y = Math.min(want.y, 2.7);
     const look = pivot.clone().addScaledVector(fwd, 6).addScaledVector(right, shoulder * 0.25);
-    look.y = THREE.MathUtils.lerp(1.45, 0.4, v) - (desert ? -0.6 : 0);
+    look.y = THREE.MathUtils.lerp(1.45, 0.4, v) - (desert ? -0.6 : 0) + hero * (2.4 + 14 * Math.max(0, -driver.look.pitch));
     const a = k.pos.distanceTo(want) > 40 ? 1 : 1 - Math.exp(-dt * 6);
     k.pos.lerp(want, a);
     k.look.lerp(look, a);

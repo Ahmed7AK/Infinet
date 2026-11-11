@@ -8,7 +8,7 @@ import { useGLTF } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, type JSX } from 'react';
 import * as THREE from 'three';
-import { geoLookAngle, LAYOUT, PARAMS, type Vec2 } from '../../engine/index';
+import { geoLookAngle, isArea, LAYOUT, PARAMS, type Vec2 } from '../../engine/index';
 import { useUi } from '../driver';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { boxGeo, floorGeo, MAT, modelUrl, useModel, type ModelName } from './assets';
@@ -18,6 +18,7 @@ import { screenMaterials, screenUVs } from './screens';
 import { ParkedCars, ROAD_VIS, Traffic } from './Traffic';
 import { camOccluders } from './vision';
 import { Hall } from './Hall';
+import { AreaScene } from './areas/index';
 
 const P = LAYOUT.props;
 const yawFromCompass = (deg: number) => (-deg * Math.PI) / 180; // +Z-forward models facing compass `deg` need π offset (see `faceCompass`)
@@ -44,7 +45,7 @@ function Walls() {
     };
     const out: JSX.Element[] = [];
     LAYOUT.walls.forEach((w, i) => {
-      if (w.door || w.zone === 'desert' || w.zone === 'hall') return;
+      if (w.door || w.zone === 'desert' || w.zone === 'hall' || isArea(w.zone)) return; // those scenes draw their own walls
       const dx = w.b[0] - w.a[0], dy = w.b[1] - w.a[1];
       const len = Math.hypot(dx, dy);
       const isGlass = w.material.includes('glass');
@@ -693,6 +694,7 @@ export function Zones() {
   const vision = useUi((s) => s.vision);
   if (zone === 'desert') return (<><DesertSite /><Towers /><People zone="desert" /></>);
   if (zone === 'hall') return (<><Hall /><People zone="hall" /></>);
+  if (isArea(zone)) return (<><AreaScene id={zone} /><People zone={zone} /></>);
   return (
     <>
       <Street />

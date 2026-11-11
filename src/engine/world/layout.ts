@@ -43,6 +43,8 @@ export interface Transmitter {
   indoor?: boolean;
   /** cell: no sector pattern (a ceiling antenna) */
   omni?: boolean;
+  /** what the Vision tag calls it instead of the operator's name ("5G small cell", "Wi-Fi palm") */
+  title?: string;
 }
 export interface Building { id: string; poly: Vec2[]; o2i: 'high' | 'low'; kind: string; height?: number; floor?: string }
 export interface Region { id: string; poly: Vec2[] }

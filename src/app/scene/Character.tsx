@@ -12,7 +12,8 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { LAYOUT, VENUE, type Vec2 } from '../../engine/index';
+import { isArea, LAYOUT, VENUE, type Vec2 } from '../../engine/index';
+import { AREA_NPCS } from './areas/people';
 import { driver, useUi } from '../driver';
 import { useModel } from './assets';
 import { crowd } from './crowd';
@@ -267,6 +268,7 @@ function Contact({ r, opacity = 0.42 }: { r: number; opacity?: number }) {
 /** sidewalks are a 12 cm step up from the road (drawn on past both ends of the street); the desert site stands on a 16 cm concrete pad */
 const SW = [[2, 8], [24, 30]];
 export function groundAt(p: Vec2) {
+  if (p[0] < -5000) return 0.02; // the park, Downtown, the metro station and the souk: level paving
   if (p[0] > 30000) return 0.02; // the venue hall: event carpet on the concrete floor
   if (p[0] > 10000) return 0.16;
   if (p[1] < 300 && p[1] > -440 && SW.some(([a, b]) => p[0] >= a && p[0] <= b)) return 0.12;
@@ -287,7 +289,7 @@ interface Walk {
   /** the path crosses the road at the zebra: wait at the kerb until the traffic has stopped */
   crosses?: boolean;
 }
-interface Npc { who: Who; at: Vec2; face: number; act: Act; walk?: Walk; lift?: number }
+export interface Npc { who: Who; at: Vec2; face: number; act: Act; walk?: Walk; lift?: number }
 
 /** desk seats: the desk set's chair sits 0.1 m right of and 0.6 m in front of the desk (turned with odd desks) */
 const DESKS = LAYOUT.props.desks as Vec2[];
@@ -521,7 +523,7 @@ function Person({ n, id }: { n: Npc; id: string }) {
 }
 
 export function People({ zone }: { zone: string }) {
-  const list = zone === 'desert' ? NPCS.desert : zone === 'hall' ? HALL_NPCS : [...NPCS.office, ...NPCS.street];
+  const list = isArea(zone) ? AREA_NPCS[zone] : zone === 'desert' ? NPCS.desert : zone === 'hall' ? HALL_NPCS : [...NPCS.office, ...NPCS.street];
   return (
     <>
       <Player />

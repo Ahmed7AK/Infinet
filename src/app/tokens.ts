@@ -61,6 +61,8 @@ export const netFacts = (e: { band?: string; channel?: number; bwMHz?: number; s
 export const NET_NAME: Record<string, string> = {
   'office-corp': 'Office-Corp', 'cafe-guest': 'Cafe_Guest', twin: 'Cafe_Guest (copy)', 'site-net': 'Site-Net', 'site-twin': 'Site-Net (copy)',
   'cell-a': 'Cellular A · 5G', 'cell-b': 'Cellular B · 5G', 'venue-free': 'Venue-Free-WiFi',
+  'park-wifi': 'Park_Free_WiFi', boulevard: 'Boulevard_WiFi · Passpoint', 'metro-wifi': 'Metro_Free_WiFi',
+  'souk-spice': 'Spice_Shop', 'souk-textile': 'Textile_House', 'souk-guest': 'Souk_Guest', 'souk-free': 'Souk_Free_WiFi', 'rogue-souk': 'S\u043Euk_Free_WiFi (look-alike)',
 };
 // the mobile word follows the scene (4G in the hall, where we measured LTE): read it when drawing, never at import
 Object.defineProperty(NET_NAME, 'cell-a', { get: () => `Cellular A · ${mobileWord()}`, enumerable: true });
@@ -69,5 +71,7 @@ export const pathName = (p?: string | null) => {
   if (!p) return '—';
   const [k, n] = p.split(':');
   if (k === 'cell') return `${mobileWord()} (Cellular ${n === 'cell-b' ? 'B' : 'A'})`;
-  return ({ 'office-corp': 'Office Wi-Fi', 'cafe-guest': 'Café Wi-Fi', twin: 'Café Wi-Fi (copy)', 'site-net': 'Site Wi-Fi', 'site-twin': 'Site Wi-Fi (copy)', flood: 'Fake beacon', 'venue-free': 'Venue Wi-Fi' } as Record<string, string>)[n] ?? n;
+  return ({ 'office-corp': 'Office Wi-Fi', 'cafe-guest': 'Café Wi-Fi', twin: 'Café Wi-Fi (copy)', 'site-net': 'Site Wi-Fi', 'site-twin': 'Site Wi-Fi (copy)', flood: 'Fake beacon', 'venue-free': 'Venue Wi-Fi',
+    'park-wifi': 'Park Wi-Fi', boulevard: 'Promenade Wi-Fi', 'metro-wifi': 'Station Wi-Fi', 'souk-spice': 'Spice shop Wi-Fi', 'souk-textile': 'Textile shop Wi-Fi',
+    'souk-guest': 'Souk guest Wi-Fi', 'souk-free': 'Souk Wi-Fi', 'rogue-souk': 'Souk Wi-Fi (look-alike)' } as Record<string, string>)[n] ?? n;
 };

@@ -25,8 +25,14 @@ export function useStageScale() {
   return s;
 }
 
-const SHORT: Record<Playable, string> = { 'building-exit': 'Office exit', 'cafe-twin': 'Café', 'desert-sat': 'Desert site', 'venue-hall': 'Our hall' };
-const PLACE: Record<Playable, string> = { 'building-exit': 'city', 'cafe-twin': 'city', 'desert-sat': 'remote site', 'venue-hall': 'the venue' };
+const SHORT: Record<Playable, string> = {
+  'building-exit': 'Office exit', 'cafe-twin': 'Café', 'desert-sat': 'Desert site', 'venue-hall': 'Our hall',
+  'park-walk': 'Park', 'downtown-walk': 'Downtown', 'metro-station': 'Metro', 'souk-alley': 'Old souk',
+};
+const PLACE: Record<Playable, string> = {
+  'building-exit': 'city', 'cafe-twin': 'city', 'desert-sat': 'remote site', 'venue-hall': 'the venue',
+  'park-walk': 'park', 'downtown-walk': 'downtown', 'metro-station': 'metro', 'souk-alley': 'old town',
+};
 
 export function SceneTitle() {
   const sc = useUi((s) => s.scenario);

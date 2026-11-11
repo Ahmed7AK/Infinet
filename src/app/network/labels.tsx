@@ -9,7 +9,7 @@ import { LAYOUT, VENUE, type SimSnapshot, type TrustView } from '../../engine/in
 import { ANON_KIND, badge, fmtDb, fmtMs, fmtS, NET_NAME, netFacts, wifiGen, type Tier } from '../tokens';
 import type { LabelItem, V3 } from '../scene/labels';
 import { driver } from '../driver';
-import { anchorPos, copyOn, geoSat, isOnWifi, leoSat, realNet, visibleTx } from './NetworkLayer';
+import { anchorPos, copyOn, geoSat, internetPos, isOnWifi, leoSat, realNet, visibleTx } from './NetworkLayer';
 
 const w3 = (x: number, y: number, h = 0): V3 => [x, h, -y];
 const TX = LAYOUT.transmitters;
@@ -61,13 +61,13 @@ export function worldLabels(s: SimSnapshot, view: string, vision: boolean): Labe
         const link = s.links.find((l) => l.id === `cell:${t.net}`);
         out.push({
           key: `tag:${t.id}`, pos: w3(t.pos[0], t.pos[1], t.pos[2] + 2.5), z: 1,
-          node: <div className="ntag cell"><span className="dot" /><span className="n">{NET_NAME[t.net] ?? t.net}</span><span className="d">{fmtDb(link?.rsrpDbm)}</span>{tv && <Badge tier={tv.tier} />}</div>,
+          node: <div className="ntag cell"><span className="dot" /><span className="n">{t.title ?? NET_NAME[t.net] ?? t.net}</span><span className="d">{fmtDb(link?.rsrpDbm)}</span>{tv && <Badge tier={tv.tier} />}</div>,
         });
         continue;
       }
       const e = t.bssid ? scan.get(t.bssid) : undefined;
       // the copy uses the café's name: that is the attack. Only the truth view says which is which.
-      const ssid = t.attacker && view === 'belief' ? NET_NAME[realNet(t.net)] : NET_NAME[t.net] ?? t.ssid ?? t.net;
+      const ssid = t.attacker && view === 'belief' ? (t.rogue ? t.ssid : NET_NAME[realNet(t.net)]) : NET_NAME[t.net] ?? t.ssid ?? t.net;
       out.push({
         key: `tag:${t.id}`, pos: w3(t.pos[0], t.pos[1], t.pos[2] + 0.45), z: 1,
         node: (
@@ -81,8 +81,8 @@ export function worldLabels(s: SimSnapshot, view: string, vision: boolean): Labe
     }
     out.push({ key: 'anchor', pos: anchorPos(s.zone), z: 1, node: <div className="ntag tunnel"><span className="dot" /><span className="n">Anchor server</span><span className="d">the tunnel ends here</span></div> });
     if (!desert) {
-      const a = (hall ? LAYOUT.visual.internetHall ?? LAYOUT.visual.internet : LAYOUT.visual.internet).pos;
-      out.push({ key: 'inet', pos: w3(a[0], a[1], 26), z: 1, node: <div className="ntag wired"><span className="dot" /><span className="n">Internet</span></div> });
+      const ip = internetPos(s.zone);
+      out.push({ key: 'inet', pos: [ip[0], 26, ip[2]], z: 1, node: <div className="ntag wired"><span className="dot" /><span className="n">Internet</span></div> });
     } else {
       const leoUp = s.truth.uplink === 'LEO' && !s.truth.leoOutage, geoUp = s.truth.uplink === 'GEO';
       const pat = s.infinet.satPatient;

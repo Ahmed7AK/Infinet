@@ -12,6 +12,7 @@ import type { Observations } from '../observe/observe';
 import { rttOf, samplePacket, type PathTruth } from '../links/paths';
 import type { MapSet } from '../maps/rfmaps';
 import { LaneRecorder, Receiver } from '../session/voice';
+import { LAYOUT } from '../world/layout';
 
 export interface Ctx {
   t: number;
@@ -53,6 +54,15 @@ export const NET_LABEL: Record<string, string> = {
   'cell-a': '5G',
   'cell-b': '5G (Cellular B)',
   'venue-free': 'Venue Wi-Fi',
+  // the four places added on 11 Nov (world/areas.ts)
+  'park-wifi': 'Park Wi-Fi',
+  boulevard: 'Promenade Wi-Fi',
+  'metro-wifi': 'Station Wi-Fi',
+  'souk-spice': 'Spice shop Wi-Fi',
+  'souk-textile': 'Textile shop Wi-Fi',
+  'souk-guest': 'Souk guest Wi-Fi',
+  'souk-free': 'Souk Wi-Fi',
+  'rogue-souk': 'Souk Wi-Fi (look-alike)',
 };
 
 /**
@@ -70,10 +80,11 @@ export function setMobileWord(w: string) {
 
 export const netOf = (pathId: string) => pathId.split(':')[1];
 /** networks that are an attacker's (truth only: the batch metrics count them; the phone never reads this) */
-export const isFakeNet = (net: string) => net === 'twin' || net === 'site-twin' || net === 'flood';
+export const isFakeNet = (net: string) => net === 'twin' || net === 'site-twin' || net === 'flood' || net.startsWith('rogue-');
 export const isWifiPath = (pathId: string | null) => !!pathId && pathId.startsWith('wifi:');
 
-const SAVED_SSIDS = new Set(['Office-Corp', 'Cafe_Guest', 'Site-Net']);
+/** names today's phone has joined before and joins again by itself: the three scenes' own, and any the layout marks `saved` */
+const SAVED_SSIDS = new Set(['Office-Corp', 'Cafe_Guest', 'Site-Net', ...LAYOUT.transmitters.filter((t) => t.saved && t.ssid && !t.attacker).map((t) => t.ssid!)]);
 
 /** the kind of link a path is, as the phone knows it (Site-Net's satellite backhaul is in the enrolled profile) */
 export function netOfPathKind(p: PathTruth | undefined): LinkType {

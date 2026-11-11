@@ -2,6 +2,7 @@ import buildingExit from '../../scenarios/building-exit.json';
 import cafeTwin from '../../scenarios/cafe-twin.json';
 import desertSat from '../../scenarios/desert-sat.json';
 import type { ScenarioId, Vec2, ZoneId } from '../types';
+import { AREA_SCENARIOS } from '../world/areas';
 import { LAYOUT } from '../world/layout';
 
 export interface ScenarioEvent { when: { enterRegion?: string; at?: number }; delayS?: number; do: 'attacker.start' | 'leo.outage' }
@@ -27,6 +28,9 @@ export const SCENARIOS = {
   'cafe-twin': cafeTwin as Scenario,
   'desert-sat': desertSat as Scenario,
 } as Record<Exclude<ScenarioId, 'free'>, Scenario>;
+
+// the walks through the four places added on 11 Nov (world/areas.ts); the batch still runs the three scenes below
+for (const s of AREA_SCENARIOS) (SCENARIOS as Record<string, Scenario>)[s.id] = s;
 
 export const MUST_SCENARIOS: Array<Exclude<ScenarioId, 'free'>> = ['building-exit', 'cafe-twin', 'desert-sat'];
 

@@ -26,6 +26,7 @@ export * from './types';
 export { PARAMS, VISUAL_NOTES } from './params';
 export { SCENARIOS, MUST_SCENARIOS } from './scenario/scenarios';
 export { LAYOUT } from './world/layout';
+export { AREA_ORIGIN, AREA_IDS, DOWNTOWN, isArea, METRO, PARK, SOUK, type AreaId } from './world/areas';
 export { registerVenue, hasVenue, VENUE, type HallArt, type VenueFile, type VenuePlan } from './world/venue';
 export { geoLookAngle } from './geo';
 export { displayName, skeleton, utf8Hex, redFlags, screen, decideTier } from './trust/trust';
@@ -291,6 +292,7 @@ class SimImpl implements Sim {
     if (!tx.attacker) return true;
     if (tx.id === 'twin') return this.attacker.on;
     if (tx.net === 'site-twin') return this.lab.siteTwin;
+    if (tx.rogue) return this.lab.attackerEnabled; // a fake that is simply there (the souk's look-alike)
     return false;
   }
   private txEirp(tx: Transmitter): number { return tx.id === 'twin' ? this.attacker.eirp : tx.eirpDbm ?? 20; }
@@ -536,7 +538,7 @@ class SimImpl implements Sim {
         hops[0].owdMs += v('cafeAirtimeExtraMs');
         hops.push({ name: 'Café broadband', owdMs: v('cafeBackhaulOwdMs') });
         owd += v('cafeBackhaulOwdMs');
-      } else if (net === 'twin' || net === 'site-twin') {
+      } else if (net === 'twin' || net === 'site-twin' || tx.rogue) {
         hops.push({ name: "Attacker's laptop → own uplink", owdMs: TWIN_UPLINK_OWD_MS });
         owd += TWIN_UPLINK_OWD_MS;
         jitter += 6;
@@ -550,6 +552,14 @@ class SimImpl implements Sim {
           jitter += u.jitterMs;
           hops.push({ name: uplink === 'LEO' ? 'LEO satellite (bent pipe)' : 'GEO satellite (bent pipe)', owdMs: u.owdMs }, { name: 'Ground station / PoP', owdMs: v('leoPopOwdMs') });
           owd += u.owdMs + v('leoPopOwdMs');
+        }
+      } else if (tx.backhaul) {
+        // the hops behind this access point, as the layout lists them (a mesh hop, a shop's DSL, fibre)
+        for (const h of tx.backhaul) {
+          hops.push({ name: h.name, owdMs: h.owdMs });
+          owd += h.owdMs;
+          jitter += h.jitterMs ?? 0;
+          loss += h.loss ?? 0;
         }
       }
       if (this.lab.uplinkFlood && !tx.attacker) {

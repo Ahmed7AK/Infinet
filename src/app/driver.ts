@@ -24,11 +24,16 @@ export const NOTES_APP = 7;
 export const CREDITS_APP = 8;
 
 /** Demo seed per scenario: chosen so each policy shows *typical* behaviour, not its luckiest/unluckiest run (see PROGRESS.md). */
-export const DEMO_SEED: Record<Playable, number> = { 'building-exit': 26, 'cafe-twin': 21, 'desert-sat': 16, 'venue-hall': 5 };
+export const DEMO_SEED: Record<Playable, number> = {
+  'building-exit': 26, 'cafe-twin': 21, 'desert-sat': 16, 'venue-hall': 5,
+  'park-walk': 1, 'downtown-walk': 3, 'metro-station': 1, 'souk-alley': 1,
+};
 
 /** the venue hall is scene 4 only where the private venue file is present (src/app/venueLoad.ts) */
-export const SCENE_ORDER: Playable[] = ['building-exit', 'cafe-twin', 'desert-sat', ...(hasVenue() ? ['venue-hall' as const] : [])];
-export const SCENE_NUM: Record<Playable, string> = { 'building-exit': '01', 'cafe-twin': '02', 'desert-sat': '03', 'venue-hall': '04' };
+/** … then the four places added on 11 Nov (the park, Downtown, the metro station, the old souk): keys 5–8 at the booth, 4–7 elsewhere */
+export const AREA_SCENES: Playable[] = ['park-walk', 'downtown-walk', 'metro-station', 'souk-alley'];
+export const SCENE_ORDER: Playable[] = ['building-exit', 'cafe-twin', 'desert-sat', ...(hasVenue() ? ['venue-hall' as const] : []), ...AREA_SCENES];
+export const SCENE_NUM = Object.fromEntries(SCENE_ORDER.map((s, i) => [s, String(i + 1).padStart(2, '0')])) as Record<Playable, string>;
 
 /** Tour: each moment, and the sim time at which the tour moves on (total ≈ 2:05 plus slow-mo). */
 const TOUR_PUBLIC: Array<{ sc: Playable; until: number }> = [
@@ -48,6 +53,10 @@ export const MOMENT: Record<Playable, { t: number; label: string }> = {
   'cafe-twin': { t: 19.5, label: 'the fake hotspot' },
   'desert-sat': { t: 76, label: 'the satellite drop' },
   'venue-hall': { t: 2, label: 'the venue Wi-Fi check' },
+  'park-walk': { t: 28, label: 'the Wi-Fi edge' },
+  'downtown-walk': { t: 36, label: 'the pier' },
+  'metro-station': { t: 18, label: 'the station doors' },
+  'souk-alley': { t: 12, label: 'the look-alike' },
 };
 
 export interface UiState {

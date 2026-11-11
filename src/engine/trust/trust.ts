@@ -29,12 +29,21 @@ export const ENROLLED: Record<string, { ssid: string; security: Security }> = {
   'office-corp': { ssid: 'Office-Corp', security: 'WPA3-ENT' },
   'site-net': { ssid: 'Site-Net', security: 'WPA3-SAE' },
 };
+// … and any network the layout marks `enrolled` (a Passpoint profile from the operator: Downtown's promenade Wi-Fi)
+for (const t of LAYOUT.transmitters) if (t.enrolled && !t.attacker && t.ssid && t.security) ENROLLED[t.net] = { ssid: t.ssid, security: t.security };
 
 /** what the phone calls networks it knows by name (its own saved list, not the simulation's ids) */
 const FRIENDLY: Record<string, { label: string; noun: string }> = {
   'Office-Corp': { label: 'Office Wi-Fi', noun: 'the office' },
   Cafe_Guest: { label: 'Café Wi-Fi', noun: 'the café' },
   'Site-Net': { label: 'Site Wi-Fi', noun: 'the site' },
+  Park_Free_WiFi: { label: 'Park Wi-Fi', noun: 'the park' },
+  Boulevard_WiFi: { label: 'Promenade Wi-Fi', noun: 'the promenade' },
+  Metro_Free_WiFi: { label: 'Station Wi-Fi', noun: 'the station' },
+  Spice_Shop: { label: 'Spice shop Wi-Fi', noun: 'the spice shop' },
+  Textile_House: { label: 'Textile shop Wi-Fi', noun: 'the textile shop' },
+  Souk_Guest: { label: 'Souk guest Wi-Fi', noun: 'the souk' },
+  Souk_Free_WiFi: { label: 'Souk Wi-Fi', noun: 'the souk' },
 };
 
 // ───────────── raw names (spec §6: two forms of every name) ─────────────

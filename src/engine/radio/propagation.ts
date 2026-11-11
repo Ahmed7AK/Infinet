@@ -123,11 +123,19 @@ export function cellRsrpDet(tx: Transmitter, p: Vec2): CellSample {
     const g = sectorPatternDb(azToUe - s.azDeg, elBelow - s.downtiltDeg);
     if (g > best) { best = g; bestS = i; }
   });
+  if (tx.omni) best = 0; // a ceiling antenna: no sector pattern
   let o2i = 0;
   const b = buildingAt(p);
-  if (b) o2i = o2iWallLossDb(b.o2i, fc) + v('o2iInsideDistCoef') * Math.min(25, distToPolyEdge(p, b.poly));
+  let indoor = !!b;
+  if (tx.indoor) {
+    // an indoor antenna (DAS): nothing between it and a phone in the same building; that building's wall (and the
+    // other building's, if any) to a phone anywhere else
+    const home = buildingAt([tx.pos[0], tx.pos[1]]);
+    if (home && b === home) indoor = false;
+    else if (home) o2i = o2iWallLossDb(home.o2i, fc) + (b ? o2iWallLossDb(b.o2i, fc) : 0);
+  } else if (b) o2i = o2iWallLossDb(b.o2i, fc) + v('o2iInsideDistCoef') * Math.min(25, distToPolyEdge(p, b.poly));
   const rsrp = v('nrPerRePowerDbm') + v('nrSectorGainDbi') + best - pl - o2i + (tx.rsrpOffsetDb ?? 0);
-  return { rsrpDbm: rsrp, o2iDb: o2i, sector: bestS, indoor: !!b };
+  return { rsrpDbm: rsrp, o2iDb: o2i, sector: bestS, indoor };
 }
 
 export function shadowSigmaCell(tx: Transmitter): number {

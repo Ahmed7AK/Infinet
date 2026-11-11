@@ -40,16 +40,16 @@ const leoPass = (s: SimSnapshot, ph = 0.15 + 0.7 * s.truth.leoBoundaryPhase) => 
 export function leoSat(s: SimSnapshot): V3 { const { azDeg, elDeg } = leoPass(s); return skyPos(terminalPos(), azDeg, elDeg, SAT_R.leo); }
 export function geoSat(): V3 { return skyPos(dishPos(), GEO_LOOK.azDeg, GEO_LOOK.elDeg, SAT_R.geo); }
 /** each scene has its own anchor and Internet marker (the venue's come from its file) */
-export const anchorPos = (zone: ZoneId): V3 => {
+const sceneVisual = (key: 'anchor' | 'internet', zone: ZoneId) => {
   const sc = sceneOf(zone);
-  const a = (sc === 'desert' ? LAYOUT.visual.anchorDesert : sc === 'hall' ? LAYOUT.visual.anchorHall ?? LAYOUT.visual.anchor : LAYOUT.visual.anchor).pos;
-  return w3(a[0], a[1], 14);
+  return (LAYOUT.visual[`${key}${sc[0].toUpperCase()}${sc.slice(1)}`] ?? LAYOUT.visual[key]).pos;
 };
-export const internetPos = (zone: ZoneId): V3 => { const a = (sceneOf(zone) === 'hall' ? LAYOUT.visual.internetHall ?? LAYOUT.visual.internet : LAYOUT.visual.internet).pos; return w3(a[0], a[1], 22); };
+export const anchorPos = (zone: ZoneId): V3 => { const a = sceneVisual('anchor', zone); return w3(a[0], a[1], 14); };
+export const internetPos = (zone: ZoneId): V3 => { const a = sceneVisual('internet', zone); return w3(a[0], a[1], 22); };
 const gatewayPos = (): V3 => { const a = LAYOUT.visual.gateway.pos; return w3(a[0], a[1], 6); };
 
 /** is this copy on the air? (the café copy and the desert copy are separate attacks) */
-export const copyOn = (s: SimSnapshot, t: (typeof TX)[number]) => (t.net === 'site-twin' ? s.truth.siteTwinOn : s.truth.attackerOn);
+export const copyOn = (s: SimSnapshot, t: (typeof TX)[number]) => (t.rogue ? s.lab.attackerEnabled : t.net === 'site-twin' ? s.truth.siteTwinOn : s.truth.attackerOn);
 /** the real network a copy imitates */
 export const realNet = (net: string) => (net === 'twin' ? 'cafe-guest' : net === 'site-twin' ? 'site-net' : net);
 export const visibleTx = (s: SimSnapshot) => TX.filter((t) => txScene(t) === sceneOf(s.zone)).filter((t) => !t.attacker || copyOn(s, t));
@@ -60,8 +60,11 @@ export function endpoint(path: string, pv?: PolicyView | null): V3 | null {
   if (kind === 'cell') {
     // the operator's site for this scene (the hall has its own)
     const sc = sceneOf(driver.snap.zone);
-    const t = TX.find((x) => x.kind === 'cell' && x.net === net && txScene(x) === sc) ?? TX.find((x) => x.kind === 'cell' && x.net === net);
-    return t ? w3(t.pos[0], t.pos[1], t.pos[2] - 1.5) : null;
+    const sites = TX.filter((x) => x.kind === 'cell' && x.net === net && txScene(x) === sc);
+    let t = sites[0] ?? TX.find((x) => x.kind === 'cell' && x.net === net);
+    // several sites of one operator in a scene (small cells, indoor antennas): the one that serves you where you stand
+    if (sites.length > 1) { const best = driver.sim.cellCoverage(driver.snap.player.pos, 'truth').txId; t = sites.find((x) => x.id === best) ?? t; }
+    return t ? w3(t.pos[0], t.pos[1], t.pos[2] - (t.pos[2] > 12 ? 1.5 : 0.3)) : null;
   }
   const byBssid = pv?.wifiBssid ? TX.find((x) => x.bssid === pv.wifiBssid && x.net === net) : undefined;
   const t = byBssid ?? TX.find((x) => x.kind === 'wifi' && x.net === net);
@@ -244,12 +247,13 @@ const fadeMat = (color: THREE.Color) => new THREE.ShaderMaterial({
 });
 function Sectors({ s }: { s: SimSnapshot }) {
   const mat = useMemo(() => fadeMat(hdr(tech.cell, 1.4)), []);
-  const geo = useMemo(() => sectorGeo(320, 65, 4), []);
+  // a macro's sectors reach 320 m; a small cell on a lamp post is drawn to 90 m
+  const geo = useMemo(() => ({ macro: sectorGeo(320, 65, 4), small: sectorGeo(90, 65, 6) }), []);
   useFrame(() => { mat.uniforms.k.value = visionK.v; });
   return (
     <>
       {visibleTx(s).filter((t) => t.kind === 'cell').flatMap((t) => (t.sectors ?? []).map((sc, i) => (
-        <mesh key={`${t.id}-${i}`} geometry={geo} material={mat} position={w3(t.pos[0], t.pos[1], t.pos[2] - 1.2)} rotation-y={(-sc.azDeg * Math.PI) / 180} frustumCulled={false} />
+        <mesh key={`${t.id}-${i}`} geometry={t.model === 'UMi' ? geo.small : geo.macro} material={mat} position={w3(t.pos[0], t.pos[1], t.pos[2] - (t.model === 'UMi' ? 0.3 : 1.2))} rotation-y={(-sc.azDeg * Math.PI) / 180} frustumCulled={false} />
       )))}
     </>
   );

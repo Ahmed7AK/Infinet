@@ -102,10 +102,13 @@ function diffractionBlur(g: RfGrid, sigmaM: number, ws: WallSet) {
   const n = g.nx, m = g.ny;
   const lin = new Float64Array(n * m);
   for (let i = 0; i < lin.length; i++) lin[i] = 10 ** (g.data[i] / 10);
+  // only walls that reach into this grid can lie between two of its cells (the layout holds every scene's walls)
+  const gx1 = g.x0 + (n - 1) * g.res, gy1 = g.y0 + (m - 1) * g.res;
+  const near = ws.walls.filter((wl) => Math.max(wl.a[0], wl.b[0]) >= g.x0 && Math.min(wl.a[0], wl.b[0]) <= gx1 && Math.max(wl.a[1], wl.b[1]) >= g.y0 && Math.min(wl.a[1], wl.b[1]) <= gy1);
   // Inclusive test: a grid point lying exactly on a wall line counts as blocked from both sides.
   const blocked = (i0: number, j0: number, i1: number, j1: number) => {
     const ax = g.x0 + i0 * g.res, ay = g.y0 + j0 * g.res, bx = g.x0 + i1 * g.res, by = g.y0 + j1 * g.res;
-    for (const wl of ws.walls) if (touches(ax, ay, bx, by, wl.a[0], wl.a[1], wl.b[0], wl.b[1])) return true;
+    for (const wl of near) if (touches(ax, ay, bx, by, wl.a[0], wl.a[1], wl.b[0], wl.b[1])) return true;
     return false;
   };
   const pass = (src: Float64Array, horizontal: boolean) => {

@@ -7,7 +7,7 @@
 import { Activity, FlaskConical, Map as MapIcon, Phone as PhoneIcon, ShieldCheck, Waypoints, Wifi, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { mobileWord, PARAMS, VENUE, VISUAL_NOTES, type SimSnapshot } from '../../engine/index';
-import { CREDITS_APP, driver, NOTES_APP, TUNNEL_APP, useUi, type Playable } from '../driver';
+import { CREDITS_APP, driver, NOTES_APP, SCENE_ORDER, TUNNEL_APP, useUi, type Playable } from '../driver';
 import { TunnelApp } from './TunnelApp';
 import { SignInCard } from '../ui/Hud';
 import { ANON_KIND, badge, fmtDb, fmtMs, fmtPct, fmtS, netFacts, pathName, tech, THRESH, ui, type Tier } from '../tokens';
@@ -21,12 +21,15 @@ void TUNNEL_APP;
 
 // ───────────── Lab controls (arrow-navigable) ─────────────
 export interface LabControl { label: string; value: (s: SimSnapshot) => string; change?: (dir: 1 | -1, s: SimSnapshot) => void; press?: (s: SimSnapshot) => void }
-const SCEN: Playable[] = ['building-exit', 'cafe-twin', 'desert-sat'];
-const SCEN_NAME: Record<string, string> = { 'building-exit': 'Leaving the office', 'cafe-twin': 'Café copy', 'desert-sat': 'Desert site' };
+const SCEN: Playable[] = SCENE_ORDER;
+const SCEN_NAME: Record<string, string> = {
+  'building-exit': 'Leaving the office', 'cafe-twin': 'Café copy', 'desert-sat': 'Desert site', 'venue-hall': 'Our hall',
+  'park-walk': 'Park', 'downtown-walk': 'Downtown', 'metro-station': 'Metro station', 'souk-alley': 'Old souk',
+};
 const BASE: Record<string, string> = { b1: "Today's phone", b2: 'Strongest signal', b3: 'Tunnel, no check' };
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 export const LAB: LabControl[] = [
-  { label: 'Scenario', value: (s) => SCEN_NAME[s.scenario] ?? s.scenario, change: (d, s) => driver.travel(SCEN[(SCEN.indexOf(s.scenario as Playable) + d + 3) % 3], 'free') },
+  { label: 'Scenario', value: (s) => SCEN_NAME[s.scenario] ?? s.scenario, change: (d, s) => driver.travel(SCEN[(SCEN.indexOf(s.scenario as Playable) + d + SCEN.length) % SCEN.length], 'free') },
   { label: 'Compare with', value: (s) => BASE[s.lab.baseline], change: () => driver.cycleBaseline() },
   { label: 'Attacker', value: (s) => (s.lab.attackerEnabled ? 'on' : 'off'), change: (_, s) => driver.setLab({ attackerEnabled: !s.lab.attackerEnabled }), press: (s) => driver.setLab({ attackerEnabled: !s.lab.attackerEnabled }) },
   { label: 'Café attack', value: (s) => VARIANT[s.lab.attackVariant], change: (d, s) => driver.setLab({ attackVariant: VARIANTS[(VARIANTS.indexOf(s.lab.attackVariant) + d + 3) % 3] }) },

@@ -12,8 +12,9 @@
  * world/layout.ts appends it to the shared layout. The renderer (src/app/scene/areas/) draws from the local
  * frame inside a group at the area's origin.
  *
- * ASSUMPTIONS (also in the phone's Sim notes): Wi-Fi palms at 17 dBm EIRP (solar powered); small cells 20 dB and
- * indoor antennas 32 dB below the macro's power per resource element; the mesh hop adds 6 ms. The places are
+ * ASSUMPTIONS (also in the phone's Sim notes): Wi-Fi palms at 17 dBm EIRP (solar powered); the promenade's access
+ * points lose signal with distance at n = 2.8 (open air, mostly line of sight; the default 3.2 is for offices); small
+ * cells 20 dB and indoor antennas 32 dB below the macro's power per resource element; the mesh hop adds 6 ms. The places are
  * generic: no operator, mall or shop is named.
  */
 import type { Scenario } from '../scenario/scenarios';
@@ -103,7 +104,7 @@ export const METRO = {
   tracks: [28.3, 32.7],
   farPlatform: { y0: 35, y1: 43.5 },
   plaza: { x0: -70, x1: 70, y0: -44, y1: 10 },
-  aps: [[-22, 14, 4.2], [22, 14, 4.2], [-34, 22, 4.5], [34, 22, 4.5]] as Vec3[],
+  aps: [[-10, 14, 4.2], [10, 14, 4.2], [-34, 22, 4.5], [34, 22, 4.5]] as Vec3[],
   das: [[-30, 24, 6], [30, 24, 6]] as Vec3[],
   mast: [280, -240, 30] as Vec3,
 };
@@ -168,13 +169,13 @@ const park: AreaDef = {
   transmitters: [
     ...PARK.palms.map((p, i): AreaDef['transmitters'][number] => ({
       id: `park-palm-${'abc'[i]}`, kind: 'wifi', net: 'park-wifi', ssid: 'Park_Free_WiFi', bssid: `0a:3c:70:00:0${i + 1}:0a`,
-      security: 'OWE', pmf: 'required', band: '2.4', channel: [1, 6, 11][i], pos: [p[0], p[1], 4.6], eirpDbm: 17, std: 6, saved: true,
+      security: 'OWE', pmf: 'required', band: '2.4', channel: [1, 6, 11][i], pos: [p[0], p[1], 4.6], eirpDbm: 17, std: 6, saved: true, title: 'Wi-Fi palm',
       backhaul: i === 0
         ? [{ name: 'Fibre at the palm', owdMs: 2 }]
         : [{ name: 'Wireless mesh hop to the next palm', owdMs: 6, jitterMs: 3, loss: 0.003 }, { name: 'Fibre at that palm', owdMs: 2 }],
       grid: { ...PARK_GRID, res: 1 },
     })),
-    { id: 'cellA-park', ...cellA, fcGHz: 1.8, model: 'UMa', rat: 'LTE', pos: PARK.mast, sectors: facing(PARK.mast), grid: { bounds: [[-100, -90], [100, 100]], res: 2 } },
+    { id: 'cellA-park', ...cellA, title: '4G mast', fcGHz: 1.8, model: 'UMa', rat: 'LTE', pos: PARK.mast, sectors: facing(PARK.mast), grid: { bounds: [[-100, -90], [100, 100]], res: 2 } },
   ],
   routes: { 'park-walk': [[0, -58], [0, -20], [1.5, 0], [0, 14]] },
   anchor: [-260, 380], internet: [-300, 300],
@@ -183,7 +184,7 @@ const park: AreaDef = {
 const D = DOWNTOWN;
 const downtown: AreaDef = {
   id: 'downtown', label: 'Downtown', reach: 900,
-  spawn: { pos: [20, -1], headingDeg: 90 },
+  spawn: { pos: [30, -1], headingDeg: 90 },
   regions: [
     { id: 'promenade', poly: rect(D.promenade.x0, D.promenade.y0, D.promenade.x1, D.promenade.y1) },
     { id: 'pier', poly: rect(D.pier.x0, D.pier.y0, D.pier.x1, D.deck.y1) },
@@ -210,17 +211,17 @@ const downtown: AreaDef = {
   transmitters: [
     ...D.aps.map((p, i): AreaDef['transmitters'][number] => ({
       id: `dt-ap-${i + 1}`, kind: 'wifi', net: 'boulevard', ssid: 'Boulevard_WiFi', bssid: `02:7b:d0:00:0${i + 1}:01`,
-      security: 'WPA3-ENT', pmf: 'required', band: '5', channel: [36, 52, 100, 116, 132, 149][i], pos: p, eirpDbm: 20, std: 6, saved: true, enrolled: true,
+      security: 'WPA3-ENT', pmf: 'required', band: '5', channel: [36, 52, 100, 116, 132, 149][i], pos: p, eirpDbm: 20, plExp: 2.8, std: 6, saved: true, enrolled: true,
       backhaul: [{ name: 'Fibre to the hotspot operator', owdMs: 3 }],
       grid: { bounds: [[-150, -20], [150, 80]], res: 1 },
     })),
     ...D.cells.map((p, i): AreaDef['transmitters'][number] => ({
-      id: `dt-sc-${i + 1}`, ...cellA, fcGHz: 3.5, model: 'UMi', pos: p, rsrpOffsetDb: -20,
+      id: `dt-sc-${i + 1}`, ...cellA, title: '5G small cell', fcGHz: 3.5, model: 'UMi', pos: p, rsrpOffsetDb: -20,
       sectors: [{ azDeg: 90, downtiltDeg: 6 }, { azDeg: 270, downtiltDeg: 6 }, { azDeg: 0, downtiltDeg: 6 }],
       grid: { bounds: [[-160, -20], [160, 80]], res: 2 },
     })),
   ],
-  routes: { 'downtown-walk': [[20, -1], [57, -1], [60, 6], [60, 46]] },
+  routes: { 'downtown-walk': [[30, -1], [57, -1], [60, 6], [60, 60]] },
   anchor: [-420, -260], internet: [-360, -200],
 };
 
@@ -257,10 +258,10 @@ const metro: AreaDef = {
       grid: { ...METRO_GRID, res: 1 },
     })),
     ...M.das.map((p, i): AreaDef['transmitters'][number] => ({
-      id: `metro-das-${i + 1}`, ...cellA, fcGHz: 3.5, model: 'UMi', pos: p, rsrpOffsetDb: -32, omni: true, indoor: true, sectors: [],
+      id: `metro-das-${i + 1}`, ...cellA, title: 'Indoor 5G antenna', fcGHz: 3.5, model: 'UMi', pos: p, rsrpOffsetDb: -32, omni: true, indoor: true, sectors: [],
       grid: { ...METRO_GRID, res: 2 },
     })),
-    { id: 'cellA-metro', ...cellA, fcGHz: 3.5, model: 'UMa', pos: M.mast, sectors: facing(M.mast), grid: { ...METRO_GRID, res: 2 } },
+    { id: 'cellA-metro', ...cellA, title: '5G mast', fcGHz: 3.5, model: 'UMa', pos: M.mast, sectors: facing(M.mast), grid: { ...METRO_GRID, res: 2 } },
   ],
   routes: { 'metro-station': [[0, -16], [0, 16], [0, 21.5], [34, 21.5]] },
   anchor: [-260, 380], internet: [-300, 300],
@@ -295,7 +296,7 @@ const souk: AreaDef = {
     // the look-alike: "Souk_Free_WiFi" with a Cyrillic о (U+043E). Same to the eye, different bytes
     { id: 'souk-rogue', kind: 'wifi', net: 'rogue-souk', ssid: 'Sоuk_Free_WiFi', bssid: '5a:9e:14:c7:3b:02', security: 'OPEN', pmf: 'none', band: '2.4', channel: 6, pos: S.rogue, eirpDbm: 20,
       attacker: true, rogue: true, grid: SOUK_GRID },
-    { id: 'cellA-souk', ...cellA, fcGHz: 1.8, model: 'UMa', rat: 'LTE', pos: S.mast, sectors: facing(S.mast), grid: { bounds: SOUK_GRID.bounds, res: 2 } },
+    { id: 'cellA-souk', ...cellA, title: '4G mast', fcGHz: 1.8, model: 'UMa', rat: 'LTE', pos: S.mast, sectors: facing(S.mast), grid: { bounds: SOUK_GRID.bounds, res: 2 } },
   ],
   routes: { 'souk-alley': [[0, -44], [0, 0], [20, 0]] },
   anchor: [-240, 300], internet: [-280, 240],
@@ -355,7 +356,7 @@ export const AREA_SCENARIOS: Scenario[] = [
   },
   {
     id: 'downtown-walk', label: 'Downtown, by the tower', proves: 'PASSPOINT WI-FI · 5G SMALL CELLS · TRUSTED BY CERTIFICATE',
-    zone: 'downtown', route: 'downtown-walk', durationS: 68, prewarmS: 0, startDelayS: 1, defaultBaseline: 'b1', init: onCell, events: [],
+    zone: 'downtown', route: 'downtown-walk', durationS: 74, prewarmS: 0, startDelayS: 1, defaultBaseline: 'b1', init: onCell, events: [],
     captions: [
       { at: 0.5, text: 'Downtown, on the lakeside promenade. The call is on 5G from a small cell on a lamp post: there is one every 70 m.' },
       { on: 'trust.trusted', text: "The promenade Wi-Fi is Passpoint: the phone holds its certificate profile, so Infinet's check ends in Trusted and the call moves onto it." },

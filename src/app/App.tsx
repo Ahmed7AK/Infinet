@@ -6,7 +6,8 @@ import { Hud, useStageScale } from './ui/Hud';
 import { APPS, LAB, Phone } from './phone/Phone';
 import { Loader } from './ui/Loader';
 
-const TRAVEL: Record<string, Playable> = { Digit1: 'building-exit', Digit2: 'cafe-twin', Digit3: 'desert-sat', Digit4: SCENE_ORDER[3] ?? 'desert-sat' };
+/** 1 … 8 jump to the scenes in the order of the chips under the title */
+const TRAVEL: Record<string, Playable> = Object.fromEntries(SCENE_ORDER.map((s, i) => [`Digit${i + 1}`, s]));
 
 function onKeyDown(e: KeyboardEvent) {
   if (e.repeat && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) { if (/^Key[WASD]$/.test(e.code)) return; }
