@@ -1,6 +1,7 @@
 /** Typed access to src/world/layout.json, plus 2D geometry helpers. */
 import raw from '../../world/layout.json';
 import type { Security, Vec2, Vec3, ZoneId } from '../types';
+import { areaAtX, AREAS } from './areas';
 
 export interface Wall {
   a: Vec2; b: Vec2; h: number; material: string; zone: string;
@@ -29,6 +30,19 @@ export interface Transmitter {
   fit?: { points: number; rmseDb: number };
   /** Wi-Fi generation as the survey phone reported it (Android: 4 = 802.11n … 6 = 802.11ax, 8 = 802.11be) */
   std?: number;
+  /** the hops behind this access point, between the radio and the Internet (a mesh hop, a shop's DSL …); the
+   *  office, café and site networks keep their own in index.ts */
+  backhaul?: Array<{ name: string; owdMs: number; jitterMs?: number; loss?: number }>;
+  /** today's phone has joined this name before, so it joins it again by itself (the baselines' saved list) */
+  saved?: boolean;
+  /** Passpoint / an organisation profile: the phone holds this network's certificate profile (Trusted once checked) */
+  enrolled?: boolean;
+  /** with `attacker`: a fake that is simply there (on the air while Lab's attacker is enabled), not a timed attack */
+  rogue?: boolean;
+  /** cell: an indoor antenna (DAS). No wall loss to a phone in the same building; the building's wall to one outside */
+  indoor?: boolean;
+  /** cell: no sector pattern (a ceiling antenna) */
+  omni?: boolean;
 }
 export interface Building { id: string; poly: Vec2[]; o2i: 'high' | 'low'; kind: string; height?: number; floor?: string }
 export interface Region { id: string; poly: Vec2[] }
@@ -48,6 +62,14 @@ export interface Layout {
 }
 
 export const LAYOUT = raw as unknown as Layout;
+// the four places added on 11 Nov (park, downtown, metro, souk) join the same layout: one geometry for every reader
+LAYOUT.zones.push(...AREAS.zones);
+LAYOUT.regions.push(...AREAS.regions);
+LAYOUT.buildings.push(...AREAS.buildings);
+LAYOUT.walls.push(...AREAS.walls);
+LAYOUT.transmitters.push(...AREAS.transmitters);
+Object.assign(LAYOUT.routes, AREAS.routes);
+Object.assign(LAYOUT.visual, AREAS.visual);
 
 export function txById(id: string): Transmitter {
   const t = LAYOUT.transmitters.find((x) => x.id === id);
@@ -110,7 +132,7 @@ export function zoneAt(p: Vec2): ZoneId {
     const [[x0, y0], [x1, y1]] = z.bounds;
     if (p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1) return z.id;
   }
-  return p[0] > 30000 ? 'hall' : p[0] > 5000 ? 'desert' : 'street';
+  return p[0] > 30000 ? 'hall' : p[0] > 5000 ? 'desert' : p[0] < -5000 ? areaAtX(p[0]) : 'street';
 }
 
 /** the scene a transmitter belongs to: what the renderer draws and labels in each zone */

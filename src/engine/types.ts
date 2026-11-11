@@ -38,9 +38,10 @@ export type HandshakeResult = 'pass' | 'authfail' | 'timeout' | 'pending' | 'por
 /** the café attack variants (spec §4): open copy (default), perfect copy (password and BSSID copied), downgrade */
 export type AttackVariant = 'copy' | 'perfect' | 'downgrade';
 export type LinkType = 'wifi' | '5g' | 'sat';
-export type ZoneId = 'office' | 'street' | 'desert' | 'hall';
+/** 'park', 'downtown', 'metro' and 'souk' are the four places added on 11 Nov (src/engine/world/areas.ts) */
+export type ZoneId = 'office' | 'street' | 'desert' | 'hall' | 'park' | 'downtown' | 'metro' | 'souk';
 /** 'venue-hall' exists only where the private venue file is present (src/engine/world/venue.ts) */
-export type ScenarioId = 'building-exit' | 'cafe-twin' | 'desert-sat' | 'venue-hall' | 'free';
+export type ScenarioId = 'building-exit' | 'cafe-twin' | 'desert-sat' | 'venue-hall' | 'park-walk' | 'downtown-walk' | 'metro-station' | 'souk-alley' | 'free';
 
 export interface PlayerInput {
   pos: Vec2;
