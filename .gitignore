@@ -14,8 +14,11 @@ tools/scanner-mac/build/
 # Infinet Survey (Android): build output and the signing key stay local
 tools/survey-android/build/
 tools/survey-android/.keystore/
-# venue replica inputs: the organisers' plans are confidential, never push them to the public repo
-venue-private/
+# raw venue plans and survey inputs stay private; share only the approved generated runtime hall model
+venue-private/*
+!venue-private/hall/
+venue-private/hall/*
+!venue-private/hall/venue.json
 
 # TypeScript incremental build info
 *.tsbuildinfo
